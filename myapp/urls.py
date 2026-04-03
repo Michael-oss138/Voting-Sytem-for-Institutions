@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import register_admin, register_student, admin_dashboard
+from .views import register_admin, register_student, admin_dashboard, create_election, list_elections
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -16,4 +16,8 @@ urlpatterns = [
 
     # protected admin dashboard
     path('admin/dashboard/', admin_dashboard),
+
+    #Elections
+    path('elections/create/', create_election)
+    path('elections/', list_elections)
 ]

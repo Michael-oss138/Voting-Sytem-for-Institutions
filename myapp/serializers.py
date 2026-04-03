@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User
+from .models import User, Election
 
 
 class StudentSignUpsertializer(serializers.ModelSerializer):
@@ -29,3 +29,9 @@ class AdminRegisterSerializer(serializers.ModelSerializer):
             role='admin',
             is_staff = True
         )
+
+class ElectionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Election
+        fields = '__all__'
+        read_only_fields = ['created_at', 'status']
