@@ -34,4 +34,4 @@ class ElectionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Election
         fields = '__all__'
-        read_only_fields = ['created_at', 'status']
+        read_only_fields = ['created_by', 'status']
