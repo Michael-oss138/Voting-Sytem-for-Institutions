@@ -23,9 +23,9 @@ class User(AbstractUser):
 
 class Election(models.Model):
     STATUS_CHOICES =(
-        ('draft': 'Draft'),
-        ('opened': 'Opened'),
-        ('closed': 'Closed')
+        ('draft', 'Draft'),
+        ('opened', 'Opened'),
+        ('closed', 'Closed')
     )
 
     title = models.CharField(max_length=200)
@@ -40,5 +40,5 @@ class Election(models.Model):
     def __str__(self):
         return self.title
 
-        
+
     

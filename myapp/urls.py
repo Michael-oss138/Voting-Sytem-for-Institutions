@@ -18,6 +18,6 @@ urlpatterns = [
     path('admin/dashboard/', admin_dashboard),
 
     #Elections
-    path('elections/create/', create_election)
+    path('elections/create/', create_election),
     path('elections/', list_elections)
 ]

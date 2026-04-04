@@ -54,7 +54,12 @@ def admin_dashboard(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_election(request):
-    if nor request.user.role != 'admin':
+    print("USER:", request.user)
+    print("ROLE:", request.user.role)
+
+    return Response({"message":"You reached here"})
+
+    if not request.user.role != 'admin':
         return Response(
             {"error": "Only admins can create elections"},
             status=status.HTTP_403_FORBIDDEN
@@ -64,10 +69,10 @@ def create_election(request):
     if serializer.is_valid():
         serializer.save(created_by=request.user)
         return Response(
-            {"message": "Election Created Successfully"}
+            {"message": "Election Created Successfully"},
             status=status.HTTP_201_CREATED
         )
-    return(serializer.errors, status=400)
+    return Response(serializer.errors, status=400)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -76,4 +81,3 @@ def list_elections(request):
     serializer = ElectionSerializer(elections, many=True)
     return Response(serializer.data)
 
-    
