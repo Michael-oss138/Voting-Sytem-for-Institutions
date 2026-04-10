@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-
+from django.utils import timezone
 # Create your models here.
 class User(AbstractUser):
     ROLE_CHOICES = (
@@ -36,7 +36,22 @@ class Election(models.Model):
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft')
 
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    is_manually_controlled = models.BooleanField(default=False)
 
+    def update_status(self):
+        if self.is_manually_controlled:
+            return
+        
+        now = timezone.now()
+
+        if self.start_time <=now <= self.end_time:
+            self.status = 'opened'
+        elif now < self.start_time:
+            self.status = 'closed'
+        else:
+            self.status = 'draft'
+
+            self.save()
     def __str__(self):
         return self.title
 
