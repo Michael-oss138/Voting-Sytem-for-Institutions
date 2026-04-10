@@ -81,3 +81,19 @@ def list_elections(request):
     serializer = ElectionSerializer(elections, many=True)
     return Response(serializer.data)
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def open_election(request, pk):
+    election = Election.objects.get(id=pk)
+
+    if not request.user.is_staff:
+        return Response(
+            {"error": "Admins only"},
+            status=403
+        )
+    
+    election.status = 'opened'
+    election.is_manually_controlled = True
+    election.save()
+
+    return Response({"message": "Election opened successfully"})
