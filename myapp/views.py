@@ -85,7 +85,6 @@ def list_elections(request):
 @permission_classes([IsAuthenticated])
 def open_election(request, pk):
     election = Election.objects.get(id=pk)
-
     if not request.user.is_staff:
         return Response(
             {"error": "Admins only"},
@@ -126,7 +125,11 @@ def reset_election(request, pk):
             status=403
         )
     
+    
     election.is_manually_controlled = False
+
+    if hasattr(election, "update_status"):
+        election.update_status()
     election.save()
 
     return Response({"message": "Election reset successfully"})
