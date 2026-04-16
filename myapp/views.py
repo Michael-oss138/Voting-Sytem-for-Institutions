@@ -133,3 +133,26 @@ def reset_election(request, pk):
     election.save()
 
     return Response({"message": "Election reset successfully"})
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def apply_candidate(request, election_id):
+    election = get_object_or_404(Election, id=election_id)
+
+    data = request.data.copy()
+    data['user'] = request.user.id
+    data['eleciton'] = election.id
+
+    candidate = Candidate.objects.create(
+        user = request.user,
+        election = election,
+        manifesto = data.get('manifesto'),
+        cgpa = data.get('cgpa'),
+        department = data.get('department'),
+        status = 'pending'
+    )
+
+    return Response({
+        "message": "Application Submitted",
+        "status": candidate.status
+    }, status=201)
