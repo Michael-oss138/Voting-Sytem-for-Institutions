@@ -156,3 +156,48 @@ def apply_candidate(request, election_id):
         "message": "Application Submitted",
         "status": candidate.status
     }, status=201)
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def list_candidates(request, election_id):
+
+    election = get_object_or_404(Election, id=election_id)
+
+    if request.user.role != 'admin':
+        return Response({"error": "Admins Only"}, status=403)
+
+    candidates = candidates.object.filter(election=election)
+    data = [
+        {
+            "id": c.id,
+            "user": c.user.username,
+            "election": c.manifesto,
+            "cgpa": c.cgpa,
+            "department": c.department,
+            "status": c.status,
+        }
+        for c in candidates
+    ]
+    return Response(data)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def reject_candidates(request, candidate_id):
+
+    if request.user.role != 'admin':
+        return Response({"error": "Admin only"}, status=403)
+    candidates = get_object_or_404(candidates, id=candidate_id)
+    candidates.status= "rejected"
+    candidates.save()
+
+    return Response({"message": "Candidate Rejected"})
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def approve_candidate(request, candidate_id):
+    if request.user.role != 'admin':
+        return Response({"error": "Admin Only"}, status=403)
+    candidates = get_object_or_404(candidates, id=candidate_id)
+    candidates.status = "approved"
+    candidates.save()
+
+    return Response({"message": "Candidate Approved"})
