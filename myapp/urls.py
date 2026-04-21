@@ -24,4 +24,10 @@ urlpatterns = [
     path('elections/<int:pk>/open/', open_election),
     path('elections/<int:pk>/close/', close_election),
     path('elections/<int:pk>/reset/', reset_election),
+
+    path('elections/<int:election_id>/apply/', apply_candidate),
+    path('elections/<int:election_id>/candidates/', list_candidates),
+
+    path('candidates/<int:candidate_id>/approve/', approve_candidate),
+    path('candidates/<int:candidate_id>/reject/', reject_candidate),
 ]
