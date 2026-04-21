@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import register_admin, register_student, admin_dashboard, create_election, list_elections, open_election, close_election, reset_election
+from .views import register_admin, register_student, admin_dashboard, create_election, list_elections, open_election, close_election, reset_election, apply_candidate, list_candidates, approve_candidate, reject_candidate
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,

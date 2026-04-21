@@ -1,8 +1,8 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status   
-from .models import User, Election
+from .models import User, Election, Candidate
 from .serializers import AdminRegisterSerializer, StudentSignUpsertializer, ElectionSerializer
 from rest_framework.permissions import IsAuthenticated  
 from rest_framework.decorators import permission_classes    
@@ -156,6 +156,28 @@ def apply_candidate(request, election_id):
         "message": "Application Submitted",
         "status": candidate.status
     }, status=201)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def apply_candidate(request, election_id):
+    election = get_object_or_404(Election, id=election_id)
+    data = request.data.copy()
+    data['user'] = request.user.id
+    data['election'] = election.id
+
+    candidate = Candidate.objects.create(
+        user=request.user,
+        election = election,
+        manifesto = data.get('manifesto'),
+        cgpa = data.get('cgpa'),
+        department = data.get('department'),
+        status = "pending"
+    )
+
+    return Response({
+        "message": "Application Submitted",
+        "status": candidate.status
+    }, status=201)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def list_candidates(request, election_id):
@@ -181,7 +203,7 @@ def list_candidates(request, election_id):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def reject_candidates(request, candidate_id):
+def reject_candidate(request, candidate_id):
 
     if request.user.role != 'admin':
         return Response({"error": "Admin only"}, status=403)
