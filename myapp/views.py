@@ -139,31 +139,17 @@ def reset_election(request, pk):
 def apply_candidate(request, election_id):
     election = get_object_or_404(Election, id=election_id)
 
-    data = request.data.copy()
-    data['user'] = request.user.id
-    data['eleciton'] = election.id
+    if Candidate.objects.filter(user=request.user, election=election).exists():
+        return Response({
+            "error": "You have already applied for this election"
+        }, status=400)    
+    cgpa = float(request.data.get('cgpa', 0))
+    department = request.data.get('department')
 
-    candidate = Candidate.objects.create(
-        user = request.user,
-        election = election,
-        manifesto = data.get('manifesto'),
-        cgpa = data.get('cgpa'),
-        department = data.get('department'),
-        status = 'pending'
-    )
-
-    return Response({
-        "message": "Application Submitted",
-        "status": candidate.status
-    }, status=201)
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def apply_candidate(request, election_id):
-    election = get_object_or_404(Election, id=election_id)
-    data = request.data.copy()
-    data['user'] = request.user.id
-    data['election'] = election.id
+    if cgpa>= 3.0:
+        status_value = "approved"
+    else:
+        status_value = "rejected"
 
     candidate = Candidate.objects.create(
         user=request.user,
@@ -178,7 +164,7 @@ def apply_candidate(request, election_id):
         "message": "Application Submitted",
         "status": candidate.status
     }, status=201)
-@api_view(['POST'])
+@api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def list_candidates(request, election_id):
 
@@ -187,7 +173,7 @@ def list_candidates(request, election_id):
     if request.user.role != 'admin':
         return Response({"error": "Admins Only"}, status=403)
 
-    candidates = candidates.object.filter(election=election)
+    candidate = Candidate.objects.filter(election=election)
     data = [
         {
             "id": c.id,
@@ -197,7 +183,7 @@ def list_candidates(request, election_id):
             "department": c.department,
             "status": c.status,
         }
-        for c in candidates
+        for c in candidate
     ]
     return Response(data)
 
@@ -207,7 +193,7 @@ def reject_candidate(request, candidate_id):
 
     if request.user.role != 'admin':
         return Response({"error": "Admin only"}, status=403)
-    candidates = get_object_or_404(candidates, id=candidate_id)
+    candidates = get_object_or_404(Candidate, id=candidate_id)
     candidates.status= "rejected"
     candidates.save()
 
@@ -218,7 +204,7 @@ def reject_candidate(request, candidate_id):
 def approve_candidate(request, candidate_id):
     if request.user.role != 'admin':
         return Response({"error": "Admin Only"}, status=403)
-    candidates = get_object_or_404(candidates, id=candidate_id)
+    candidates = get_object_or_404(Candidate, id=candidate_id)
     candidates.status = "approved"
     candidates.save()
 

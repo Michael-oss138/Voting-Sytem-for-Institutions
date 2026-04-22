@@ -57,7 +57,6 @@ class Election(models.Model):
 
 class Candidate(models.Model):
     STATUS_CHOICES = (
-        ('pending', 'Pending'),
         ('approved', 'Approved'),
         ('rejected', 'Rejected'),
     )
@@ -73,7 +72,7 @@ class Candidate(models.Model):
     status = models.CharField(
         max_length=20,
         choices= STATUS_CHOICES,
-        default= 'pending'
+        default= 'rejected'
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
