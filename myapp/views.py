@@ -2,7 +2,7 @@ from django.shortcuts import render, get_object_or_404
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status   
-from .models import User, Election, Candidate
+from .models import User, Election, Candidate, Vote
 from .serializers import AdminRegisterSerializer, StudentSignUpsertializer, ElectionSerializer
 from rest_framework.permissions import IsAuthenticated  
 from rest_framework.decorators import permission_classes    
@@ -209,3 +209,45 @@ def approve_candidate(request, candidate_id):
     candidates.save()
 
     return Response({"message": "Candidate Approved"})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def cast_vote(request, election_id, candidate_id):
+
+    election = get_object_or_404(Election, id=election_id)
+
+    candidate = get_object_or_404(
+        Candidate,
+        id=candidate_id,
+        election=election
+    )
+    if election.status != 'opened':
+        return Response(
+            {"error": "Election is not open"},
+            status=400
+        )
+    if candidate.status != 'approved':
+        return Response(
+            {"error": "Candidate is not approved"},
+            status=400
+        )
+    if Vote.objects.filter(
+        voter=request.user,
+        election=election
+    ).exists():
+
+        return Response(
+            {"error": "You have already voted"},
+            status=400
+        )
+
+    Vote.objects.create(
+        voter=request.user,
+        election=election,
+        candidate=candidate
+    )
+
+    return Response({
+        "message": "Vote cast successfully"
+    }, status=201)

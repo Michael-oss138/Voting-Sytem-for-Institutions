@@ -79,3 +79,28 @@ class Candidate(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.election.title}"    
+
+class Vote(models.Model):
+
+    voter = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE
+    )
+
+    election = models.ForeignKey(
+        Election,
+        on_delete=models.CASCADE
+    )
+
+    candidate = models.ForeignKey(
+        Candidate,
+        on_delete=models.CASCADE
+    )
+
+    voted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('voter', 'election')
+
+    def __str__(self):
+        return f"{self.voter.username} voted in {self.election.title}"
