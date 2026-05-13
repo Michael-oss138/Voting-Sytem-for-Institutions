@@ -7,6 +7,7 @@ from .serializers import AdminRegisterSerializer, StudentSignUpsertializer, Elec
 from rest_framework.permissions import IsAuthenticated  
 from rest_framework.decorators import permission_classes    
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from django.db.models import Count
 # Create your views here.
 
 @api_view(['POST'])
@@ -251,3 +252,52 @@ def cast_vote(request, election_id, candidate_id):
     return Response({
         "message": "Vote cast successfully"
     }, status=201)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def check_vote_status(request, election_id):
+
+    election = get_object_or_404(Election, id=election_id)
+
+    has_voted = Vote.objects.filter(
+        voter=request.user,
+        election=election
+    ).exists()
+
+    return Response({
+        "has_voted": has_voted
+    })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def election_results(request, election_id):
+
+    election = get_object_or_404(Election, id=election_id)
+
+    candidates = Candidate.objects.filter(
+        election=election,
+        status='approved'
+    )
+
+    results = []
+
+    for candidate in candidates:
+
+        vote_count = Vote.objects.filter(
+            election=election,
+            candidate=candidate
+        ).count()
+
+        results.append({
+            "candidate_id": candidate.id,
+            "candidate_name": candidate.user.username,
+            "votes": vote_count
+        })
+
+    # sort highest votes first
+    results.sort(key=lambda x: x['votes'], reverse=True)
+
+    return Response({
+        "election": election.title,
+        "results": results
+    })

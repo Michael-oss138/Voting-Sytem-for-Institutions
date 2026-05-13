@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import register_admin, register_student, admin_dashboard, create_election, list_elections, open_election, close_election, reset_election, apply_candidate, list_candidates, approve_candidate, reject_candidate, cast_vote
+from .views import register_admin, register_student, admin_dashboard, create_election, list_elections, open_election, close_election, reset_election, apply_candidate, list_candidates, approve_candidate, reject_candidate, cast_vote, check_vote_status, election_results
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -32,4 +32,8 @@ urlpatterns = [
     path('candidates/<int:candidate_id>/reject/', reject_candidate),
 
     path('elections/<int:election_id>/vote/<int:candidate_id>/',cast_vote),
+
+    path('elections/<int:election_id>/vote-status/', check_vote_status),
+
+    path('elections/<int:election_id>/results/', election_results),
 ]
