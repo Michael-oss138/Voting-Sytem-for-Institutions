@@ -1,0 +1,94 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Register — CrawfordVote</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/global.css' %}">
+</head>
+<body>
+
+<div class="auth-shell">
+  <div class="auth-box">
+
+    <div class="auth-logo">
+      <span class="hex">⬡</span>
+      <h1>CrawfordVote</h1>
+      <p>Crawford University Student Elections</p>
+    </div>
+
+    <div class="auth-card">
+      <h3 style="margin-bottom:1.5rem; font-size:1rem; color:var(--t2); font-weight:500;">Create your student account</h3>
+
+      <div id="alert" class="alert"></div>
+
+      <div class="form-group">
+        <label class="form-label" for="username">Username</label>
+        <input class="form-control" type="text" id="username" placeholder="Choose a username"/>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="password">Password</label>
+        <input class="form-control" type="password" id="password" placeholder="Create a password"/>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="password2">Confirm Password</label>
+        <input class="form-control" type="password" id="password2" placeholder="Repeat your password"/>
+      </div>
+
+      <button class="btn btn-primary btn-block btn-lg mt-2" id="reg-btn">Create Account</button>
+    </div>
+
+    <div class="auth-foot">
+      Already have an account? <a href="/api/">Sign in</a>
+    </div>
+
+  </div>
+</div>
+
+<script src="{% static 'js/auth.js' %}"></script>
+<script src="{% static 'js/api.js' %}"></script>
+<script>
+  redirectIfLoggedIn();
+
+  document.getElementById('reg-btn').addEventListener('click', async () => {
+    const username  = document.getElementById('username').value.trim();
+    const password  = document.getElementById('password').value;
+    const password2 = document.getElementById('password2').value;
+
+    if (!username || !password || !password2) {
+      showAlert('alert', 'Please fill in all fields.'); return;
+    }
+    if (password !== password2) {
+      showAlert('alert', 'Passwords do not match.'); return;
+    }
+    if (password.length < 6) {
+      showAlert('alert', 'Password must be at least 6 characters.'); return;
+    }
+
+    setLoading('reg-btn', true, 'Create Account');
+    try {
+      const res  = await apiPost('/student/register/', { username, password });
+      const data = await res.json();
+
+      if (res.ok) {
+        showAlert('alert', 'Account created! Taking you to login…', 'success');
+        setTimeout(() => window.location.href = '/api/', 1500);
+      } else {
+        const msg = data.username?.[0] || data.password?.[0] || 'Registration failed. Try a different username.';
+        showAlert('alert', msg);
+      }
+    } catch {
+      showAlert('alert', 'Network error. Is the server running?');
+    } finally {
+      setLoading('reg-btn', false, 'Create Account');
+    }
+  });
+</script>
+</body>
+</html>

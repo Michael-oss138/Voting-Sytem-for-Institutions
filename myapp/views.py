@@ -1,14 +1,29 @@
 from django.shortcuts import render, get_object_or_404
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status   
 from .models import User, Election, Candidate, Vote
 from .serializers import AdminRegisterSerializer, StudentSignUpsertializer, ElectionSerializer
-from rest_framework.permissions import IsAuthenticated  
-from rest_framework.decorators import permission_classes    
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.views import TokenObtainPairView
 from django.db.models import Count
 # Create your views here.
+
+
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        token['username'] = user.username
+        token['role']     = user.role
+        return token
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
+
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -50,7 +65,7 @@ def admin_dashboard(request):
     if request.user.role != 'admin':
         return Response({"error": "Access Denied"}, status=status.HTTP_403_FORBIDDEN)
     
-    return Response({"message": f"welcome {request.user.user_name}, you are an admin"})
+    return Response({"message": f"welcome {request.user.username}, you are an admin"})
     
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -147,18 +162,15 @@ def apply_candidate(request, election_id):
     cgpa = float(request.data.get('cgpa', 0))
     department = request.data.get('department')
 
-    if cgpa>= 3.0:
-        status_value = "approved"
-    else:
-        status_value = "rejected"
+    status_value = 'approved' if cgpa >= 3.0 else 'rejected'
 
     candidate = Candidate.objects.create(
         user=request.user,
         election = election,
-        manifesto = data.get('manifesto'),
-        cgpa = data.get('cgpa'),
-        department = data.get('department'),
-        status = "pending"
+        manifesto = request.data.get('manifesto'),
+        cgpa = cgpa,
+        department = department,
+        status = status_value
     )
 
     return Response({
@@ -171,10 +183,7 @@ def list_candidates(request, election_id):
 
     election = get_object_or_404(Election, id=election_id)
 
-    if request.user.role != 'admin':
-        return Response({"error": "Admins Only"}, status=403)
-
-    candidate = Candidate.objects.filter(election=election)
+    candidate = Candidate.objects.filter(election=election, status='approved')
     data = [
         {
             "id": c.id,
@@ -297,7 +306,27 @@ def election_results(request, election_id):
     # sort highest votes first
     results.sort(key=lambda x: x['votes'], reverse=True)
 
+    winner = results[0] if results else None
     return Response({
         "election": election.title,
+        "winner": winner,
         "results": results
     })
+
+def login_page(request):
+    return render(request, 'login.html')
+
+def register_page(request):
+    return render(request, 'register.html')
+
+def dashboard_page(request):
+    return render(request, 'dashboard.html')
+
+def elections_page(request):
+    return render(request, 'elections.html')
+
+def election_detail_page(request, pk):
+    return render(request, 'election_detail.html')
+
+def results_page(request, pk):
+    return render(request, 'results.html')

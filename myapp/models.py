@@ -47,9 +47,9 @@ class Election(models.Model):
         if self.start_time <=now <= self.end_time:
             self.status = 'opened'
         elif now < self.start_time:
-            self.status = 'closed'
-        else:
             self.status = 'draft'
+        else:
+            self.status = 'closed'
 
             self.save()
     def __str__(self):

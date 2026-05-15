@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Dashboard — CrawfordVote{% endblock %}
+
+{% block content %}
+<div class="flex-between page-hd">
+  <div>
+    <h1 id="welcome-text">Dashboard</h1>
+    <p id="welcome-sub">Loading…</p>
+  </div>
+  <div id="admin-new-btn" style="display:none;">
+    <a href="/api/elections-page/create/" class="btn btn-primary">+ New Election</a>
+  </div>
+</div>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-val" id="s-total">—</div>
+    <div class="stat-label">Total Elections</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-val" id="s-open" style="color:var(--green);">—</div>
+    <div class="stat-label">Currently Open</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-val" id="s-draft" style="color:var(--t3);">—</div>
+    <div class="stat-label">Draft</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-val" id="s-closed" style="color:var(--red);">—</div>
+    <div class="stat-label">Closed</div>
+  </div>
+</div>
+
+<div id="alert" class="alert"></div>
+
+<div class="flex-between mb-2">
+  <h2 style="font-size:.95rem; color:var(--t2); text-transform:uppercase; letter-spacing:.06em;">Recent Elections</h2>
+  <a href="/api/elections-page/" class="text-sm text-accent">View all →</a>
+</div>
+
+<div id="elections-out"><div class="loading">Loading elections…</div></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  requireAuth();
+  const user = getUser();
+
+  if (user) {
+    document.getElementById('welcome-text').textContent = `Welcome, ${user.username}`;
+    document.getElementById('welcome-sub').textContent  = user.role === 'admin'
+      ? 'Admin Dashboard — manage elections below.'
+      : 'Your student dashboard — vote and track ongoing elections.';
+    if (user.role === 'admin') document.getElementById('admin-new-btn').style.display = 'block';
+  }
+
+  async function loadDashboard() {
+    try {
+      const res = await apiGet('/elections/');
+      if (!res.ok) return;
+      const data = await res.json();
+
+      document.getElementById('s-total').textContent  = data.length;
+      document.getElementById('s-open').textContent   = data.filter(e => e.status === 'opened').length;
+      document.getElementById('s-draft').textContent  = data.filter(e => e.status === 'draft').length;
+      document.getElementById('s-closed').textContent = data.filter(e => e.status === 'closed').length;
+
+      const out = document.getElementById('elections-out');
+      const recent = data.slice(0, 6);
+
+      if (!recent.length) {
+        out.innerHTML = `<div class="empty-state"><span class="empty-icon">🗳</span><p>No elections yet.</p></div>`;
+        return;
+      }
+
+      out.innerHTML = `<div class="grid-2">${recent.map(e => `
+        <a class="card card-link" href="/api/elections-page/${e.id}/">
+          <div class="flex-between mb-1">
+            ${statusBadge(e.status)}
+            <span class="text-xs text-muted">#${e.id}</span>
+          </div>
+          <div class="card-title mt-1">${e.title}</div>
+          <p class="text-sm mt-1" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
+            ${e.description || ''}
+          </p>
+          <div class="hr"></div>
+          <div class="flex-between text-xs text-muted">
+            <span>Start: ${formatDate(e.start_time)}</span>
+            <span>End: ${formatDate(e.end_time)}</span>
+          </div>
+        </a>`).join('')}</div>`;
+    } catch {
+      showAlert('alert', 'Could not load elections. Is the server running?');
+    }
+  }
+
+  loadDashboard();
+</script>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}CrawfordVote{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/global.css' %}">
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a href="/api/dashboard/" class="nav-brand">
+        <span class="brand-hex">⬡</span>
+        Crawford<span class="brand-accent">Vote</span>
+      </a>
+      <div class="nav-center">
+        <a href="/api/dashboard/" class="nav-link" data-match="/api/dashboard/">Dashboard</a>
+        <a href="/api/elections-page/" class="nav-link" data-match="/api/elections-page/">Elections</a>
+      </div>
+      <div class="nav-right">
+        <span class="nav-role-badge" id="nav-role-badge"></span>
+        <span class="nav-username" id="nav-username"></span>
+        <button class="btn-ghost nav-logout" id="logout-btn">Sign out</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="page-wrap">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="{% static 'js/auth.js' %}"></script>
+  <script src="{% static 'js/api.js' %}"></script>
+  {% block extra_js %}{% endblock %}
+
+  <script>
+    const _u = getUser();
+    if (_u) {
+      const nameEl = document.getElementById('nav-username');
+      const roleEl = document.getElementById('nav-role-badge');
+      if (nameEl) nameEl.textContent = _u.username;
+      if (roleEl) { roleEl.textContent = _u.role; roleEl.className = 'nav-role-badge role-' + _u.role; }
+    }
+    document.querySelectorAll('.nav-link').forEach(l => {
+      if (window.location.pathname.startsWith(l.dataset.match)) l.classList.add('active');
+    });
+    const _lb = document.getElementById('logout-btn');
+    if (_lb) _lb.addEventListener('click', () => { clearTokens(); window.location.href = '/api/'; });
+  </script>
+</body>
+</html>

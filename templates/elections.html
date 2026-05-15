@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Elections — CrawfordVote{% endblock %}
+
+{% block content %}
+<div class="flex-between page-hd">
+  <div>
+    <h1>Elections</h1>
+    <p>Browse all elections and cast your vote.</p>
+  </div>
+  <div id="admin-new-btn" style="display:none;">
+    <a href="/api/elections-page/create/" class="btn btn-primary">+ New Election</a>
+  </div>
+</div>
+
+<div class="filter-tabs">
+  <button class="filter-tab active" data-filter="all">All</button>
+  <button class="filter-tab" data-filter="opened">Open</button>
+  <button class="filter-tab" data-filter="draft">Draft</button>
+  <button class="filter-tab" data-filter="closed">Closed</button>
+</div>
+
+<div id="alert" class="alert"></div>
+<div id="elections-out"><div class="loading">Loading…</div></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  requireAuth();
+  const user = getUser();
+  if (user?.role === 'admin') document.getElementById('admin-new-btn').style.display = 'block';
+
+  let all = [];
+
+  function render(list) {
+    const out = document.getElementById('elections-out');
+    if (!list.length) {
+      out.innerHTML = `<div class="empty-state"><span class="empty-icon">🗳</span><p>No elections found.</p></div>`; return;
+    }
+    out.innerHTML = `<div class="grid-2">${list.map(e => `
+      <a class="card card-link" href="/api/elections-page/${e.id}/">
+        <div class="flex-between mb-1">
+          ${statusBadge(e.status)}
+          <span class="text-xs text-muted">#${e.id}</span>
+        </div>
+        <div class="card-title mt-1">${e.title}</div>
+        <p class="text-sm mt-1" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
+          ${e.description || ''}
+        </p>
+        <div class="hr"></div>
+        <div style="display:flex;flex-direction:column;gap:3px;" class="text-xs text-muted">
+          <span>Start: ${formatDate(e.start_time)}</span>
+          <span>End:   ${formatDate(e.end_time)}</span>
+        </div>
+      </a>`).join('')}</div>`;
+  }
+
+  async function load() {
+    try {
+      const res = await apiGet('/elections/');
+      if (!res.ok) return;
+      all = await res.json();
+      render(all);
+    } catch { showAlert('alert', 'Failed to load elections.'); }
+  }
+
+  document.querySelectorAll('.filter-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const f = tab.dataset.filter;
+      render(f === 'all' ? all : all.filter(e => e.status === f));
+    });
+  });
+
+  load();
+</script>
+{% endblock %}

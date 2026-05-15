@@ -1,0 +1,208 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Election — CrawfordVote{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+  <a href="/api/elections-page/" class="text-sm text-muted" style="text-decoration:none;">← Back to Elections</a>
+</div>
+
+<div id="alert" class="alert"></div>
+<div id="page-out"><div class="loading">Loading election…</div></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  requireAuth();
+  const user = getUser();
+  const elId = window.location.pathname.split('/').filter(Boolean)[2]; // /api/elections-page/<id>/
+
+  async function load() {
+    try {
+      const [eRes, cRes, vRes] = await Promise.all([
+        apiGet('/elections/'),
+        apiGet(`/elections/${elId}/candidates/`),
+        apiGet(`/elections/${elId}/vote-status/`),
+      ]);
+
+      const elections  = eRes.ok  ? await eRes.json() : [];
+      const candidates = cRes.ok  ? await cRes.json() : [];
+      const voteStatus = vRes.ok  ? await vRes.json() : { has_voted: false };
+      const election   = elections.find(e => String(e.id) === String(elId));
+
+      if (!election) {
+        document.getElementById('page-out').innerHTML =
+          `<div class="empty-state"><p>Election not found.</p></div>`; return;
+      }
+
+      render(election, candidates, voteStatus.has_voted);
+    } catch { showAlert('alert', 'Failed to load election details.'); }
+  }
+
+  function render(el, candidates, hasVoted) {
+    const isAdmin = user?.role === 'admin';
+    const isOpen  = el.status === 'opened';
+
+    document.getElementById('page-out').innerHTML = `
+
+      <!-- Title block -->
+      <div class="flex-between page-hd">
+        <div>
+          <div class="flex items-center gap-1 mb-1">
+            ${statusBadge(el.status)}
+            <span class="text-xs text-muted">#${el.id}</span>
+          </div>
+          <h1 style="font-size:1.65rem;">${el.title}</h1>
+          <p class="mt-1">${el.description || ''}</p>
+        </div>
+        ${isAdmin ? `<a href="/api/elections-page/${el.id}/results/" class="btn btn-outline">View Results</a>` : ''}
+      </div>
+
+      <!-- Dates -->
+      <div class="card mb-3" style="padding:1rem 1.4rem;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+          <div>
+            <div class="text-xs text-muted mb-1" style="text-transform:uppercase;letter-spacing:.05em;">Start</div>
+            <div style="font-weight:500;">${formatDate(el.start_time)}</div>
+          </div>
+          <div>
+            <div class="text-xs text-muted mb-1" style="text-transform:uppercase;letter-spacing:.05em;">End</div>
+            <div style="font-weight:500;">${formatDate(el.end_time)}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Admin control bar -->
+      ${isAdmin ? `
+      <div class="admin-bar">
+        <span class="admin-bar-label">Controls</span>
+        <button class="btn btn-success btn-sm" id="btn-open"  ${isOpen ? 'disabled' : ''}>Open</button>
+        <button class="btn btn-danger  btn-sm" id="btn-close" ${el.status === 'closed' ? 'disabled' : ''}>Close</button>
+        <button class="btn btn-warning btn-sm" id="btn-reset">Reset to Draft</button>
+      </div>` : ''}
+
+      <!-- Already voted notice -->
+      ${!isAdmin && hasVoted ? `
+      <div class="alert alert-success show mb-3">✓ You have already cast your vote in this election.</div>` : ''}
+
+      <!-- Candidate apply form (student, open election, not yet voted) -->
+      ${!isAdmin && isOpen && !hasVoted ? `
+      <div class="card mb-4" id="apply-card">
+        <div class="card-title mb-3">Apply as a Candidate</div>
+        <div id="apply-alert" class="alert"></div>
+        <div class="form-group">
+          <label class="form-label">CGPA <span style="color:var(--t3);font-size:11px;">(Min 3.0 for approval)</span></label>
+          <input class="form-control" type="number" id="a-cgpa" min="0" max="5" step="0.01" placeholder="e.g. 3.75"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Department</label>
+          <input class="form-control" type="text" id="a-dept" placeholder="e.g. Computer Science"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Manifesto</label>
+          <textarea class="form-control" id="a-manifesto" placeholder="Tell students why you deserve their vote…"></textarea>
+        </div>
+        <button class="btn btn-primary" id="btn-apply">Submit Application</button>
+      </div>` : ''}
+
+      <!-- Candidates list -->
+      <div class="flex-between mb-2">
+        <h2 style="font-size:.95rem;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;">Approved Candidates</h2>
+        <span class="text-xs text-muted">${candidates.length} candidate${candidates.length !== 1 ? 's' : ''}</span>
+      </div>
+
+      <div id="candidates-out">
+        ${candidates.length === 0
+          ? `<div class="empty-state"><span class="empty-icon">👤</span><p>No approved candidates yet.</p></div>`
+          : `<div class="grid-2">${candidates.map(c => `
+              <div class="card">
+                <div class="flex-between mb-1">
+                  <div class="card-title">${c.username}</div>
+                  ${statusBadge(c.status)}
+                </div>
+                <div class="text-sm text-muted">${c.department}</div>
+                <div class="text-xs text-muted mt-1">CGPA: ${c.cgpa}</div>
+                <div class="hr"></div>
+                <p class="text-sm" style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">
+                  ${c.manifesto || ''}
+                </p>
+                ${!isAdmin && isOpen && !hasVoted
+                  ? `<button class="btn btn-primary btn-sm mt-2 vote-btn" data-id="${c.id}">Cast Vote</button>`
+                  : ''}
+              </div>`).join('')}</div>`
+        }
+      </div>
+    `;
+
+    // Attach listeners after render
+    bindAdmin(el);
+    bindApply(el.id);
+    bindVote(el.id);
+  }
+
+  function bindAdmin(el) {
+    const act = async (endpoint, msg, btnId) => {
+      const btn = document.getElementById(btnId);
+      if (!btn) return;
+      btn.disabled = true;
+      try {
+        const res  = await apiPost(endpoint, {});
+        const data = await res.json();
+        showAlert('alert', res.ok ? msg : (data.error || 'Action failed.'), res.ok ? 'success' : 'error');
+        if (res.ok) setTimeout(load, 700);
+      } catch { showAlert('alert', 'Network error.'); }
+      finally { btn.disabled = false; }
+    };
+    document.getElementById('btn-open')?.addEventListener('click',  () => act(`/elections/${el.id}/open/`,  'Election is now open.',       'btn-open'));
+    document.getElementById('btn-close')?.addEventListener('click', () => act(`/elections/${el.id}/close/`, 'Election closed.',            'btn-close'));
+    document.getElementById('btn-reset')?.addEventListener('click', () => act(`/elections/${el.id}/reset/`, 'Election reset to draft.',    'btn-reset'));
+  }
+
+  function bindApply(elId) {
+    const btn = document.getElementById('btn-apply');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      const cgpa      = document.getElementById('a-cgpa').value;
+      const dept      = document.getElementById('a-dept').value.trim();
+      const manifesto = document.getElementById('a-manifesto').value.trim();
+      if (!cgpa || !dept || !manifesto) { showAlert('apply-alert', 'Please fill in all fields.'); return; }
+
+      btn.disabled = true; btn.textContent = 'Submitting…';
+      try {
+        const res  = await apiPost(`/elections/${elId}/apply/`, { cgpa: parseFloat(cgpa), department: dept, manifesto });
+        const data = await res.json();
+        if (res.ok) {
+          showAlert('apply-alert', `Application ${data.status}! ${data.status === 'rejected' ? '(CGPA below 3.0)' : ''}`, data.status === 'approved' ? 'success' : 'error');
+          setTimeout(load, 1400);
+        } else {
+          showAlert('apply-alert', data.error || 'Application failed.');
+        }
+      } catch { showAlert('apply-alert', 'Network error.'); }
+      finally { btn.disabled = false; btn.textContent = 'Submit Application'; }
+    });
+  }
+
+  function bindVote(elId) {
+    document.querySelectorAll('.vote-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Confirm your vote? This action cannot be undone.')) return;
+        const cId = btn.dataset.id;
+        btn.disabled = true; btn.textContent = 'Voting…';
+        try {
+          const res  = await apiPost(`/elections/${elId}/vote/${cId}/`, {});
+          const data = await res.json();
+          if (res.ok) {
+            showAlert('alert', '🗳 Your vote has been cast successfully!', 'success');
+            setTimeout(load, 900);
+          } else {
+            showAlert('alert', data.error || 'Vote failed.');
+            btn.disabled = false; btn.textContent = 'Cast Vote';
+          }
+        } catch { showAlert('alert', 'Network error.'); btn.disabled = false; btn.textContent = 'Cast Vote'; }
+      });
+    });
+  }
+
+  load();
+</script>
+{% endblock %}

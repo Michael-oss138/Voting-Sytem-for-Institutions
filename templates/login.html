@@ -1,0 +1,91 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sign In — CrawfordVote</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/global.css' %}">
+</head>
+<body>
+
+<div class="auth-shell">
+  <div class="auth-box">
+
+    <div class="auth-logo">
+      <span class="hex">⬡</span>
+      <h1>CrawfordVote</h1>
+      <p>Crawford University Student Elections</p>
+    </div>
+
+    <div class="auth-card">
+      <h3 style="margin-bottom:1.5rem; font-size:1rem; color:var(--t2); font-weight:500;">Sign in to your account</h3>
+
+      <div id="alert" class="alert"></div>
+
+      <div class="form-group">
+        <label class="form-label" for="username">Username</label>
+        <input class="form-control" type="text" id="username" placeholder="Your username" autocomplete="username"/>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="password">Password</label>
+        <input class="form-control" type="password" id="password" placeholder="Your password" autocomplete="current-password"/>
+      </div>
+
+      <button class="btn btn-primary btn-block btn-lg mt-2" id="login-btn">Sign In</button>
+    </div>
+
+    <div class="auth-foot">
+      New here? <a href="/api/register/">Create a student account</a>
+    </div>
+
+  </div>
+</div>
+
+<script src="{% static 'js/auth.js' %}"></script>
+<script src="{% static 'js/api.js' %}"></script>
+<script>
+  redirectIfLoggedIn();
+
+  async function doLogin() {
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+
+    if (!username || !password) {
+      showAlert('alert', 'Please enter your username and password.'); return;
+    }
+
+    setLoading('login-btn', true, 'Sign In');
+    try {
+      const res  = await apiPost('/login/', { username, password });
+      const data = await res.json();
+
+      if (res.ok) {
+        setTokens(data.access, data.refresh);
+        const payload = decodeToken(data.access);
+        setUser({
+          username: payload.username || username,
+          role:     payload.role     || 'student',
+          user_id:  payload.user_id,
+        });
+        window.location.href = '/api/dashboard/';
+      } else {
+        const msg = data.detail || data.non_field_errors?.[0] || 'Invalid username or password.';
+        showAlert('alert', msg);
+      }
+    } catch {
+      showAlert('alert', 'Network error. Is the server running?');
+    } finally {
+      setLoading('login-btn', false, 'Sign In');
+    }
+  }
+
+  document.getElementById('login-btn').addEventListener('click', doLogin);
+  document.getElementById('password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+</script>
+</body>
+</html>

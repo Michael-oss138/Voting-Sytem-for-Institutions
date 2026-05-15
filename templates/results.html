@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Results — CrawfordVote{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+  <a id="back-link" href="/api/elections-page/" class="text-sm text-muted" style="text-decoration:none;">← Back to Election</a>
+</div>
+
+<div id="alert" class="alert"></div>
+<div id="page-out"><div class="loading">Loading results…</div></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  requireAuth();
+  const elId = window.location.pathname.split('/').filter(Boolean)[2];
+  document.getElementById('back-link').href = `/api/elections-page/${elId}/`;
+
+  async function load() {
+    try {
+      const res  = await apiGet(`/elections/${elId}/results/`);
+      if (!res.ok) { showAlert('alert', 'Failed to load results.'); return; }
+      const data = await res.json();
+      render(data);
+    } catch { showAlert('alert', 'Network error.'); }
+  }
+
+  function render(data) {
+    const results = data.results || [];
+    const winner  = data.winner;
+    const total   = results.reduce((s, r) => s + r.votes, 0);
+
+    document.getElementById('page-out').innerHTML = `
+
+      <div class="page-hd">
+        <h1>Results</h1>
+        <p>${data.election}</p>
+      </div>
+
+      <!-- Winner banner -->
+      ${winner && winner.votes > 0 ? `
+      <div class="winner-banner">
+        <div class="w-label">🏆 Winner</div>
+        <div class="w-name">${winner.candidate_name}</div>
+        <div class="w-meta">
+          ${winner.votes} vote${winner.votes !== 1 ? 's' : ''} ·
+          ${total > 0 ? Math.round(winner.votes / total * 100) : 0}% of total
+          ${winner.department ? ' · ' + winner.department : ''}
+        </div>
+      </div>` : `
+      <div class="alert alert-info show mb-4">No votes have been cast yet.</div>`}
+
+      <!-- Leaderboard -->
+      <div class="card">
+        <div class="card-title mb-3">Full Leaderboard</div>
+
+        ${results.length === 0
+          ? `<div class="empty-state"><p>No candidates to show.</p></div>`
+          : `<div class="tbl-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:40px;">#</th>
+                    <th>Candidate</th>
+                    <th>Department</th>
+                    <th style="width:80px;">Votes</th>
+                    <th style="width:220px;">Share</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${results.map((r, i) => {
+                    const pct = total > 0 ? Math.round(r.votes / total * 100) : 0;
+                    return `
+                    <tr>
+                      <td class="font-display text-muted">${i + 1}</td>
+                      <td style="font-weight:500;color:var(--t1);">
+                        ${i === 0 && r.votes > 0 ? '🏆 ' : ''}${r.candidate_name}
+                      </td>
+                      <td>${r.department || '—'}</td>
+                      <td class="font-display text-accent" style="font-weight:700;">${r.votes}</td>
+                      <td>
+                        <div class="prog-wrap">
+                          <div class="prog-bar">
+                            <div class="prog-fill" style="width:${pct}%;"></div>
+                          </div>
+                          <span class="text-xs text-muted">${pct}%</span>
+                        </div>
+                      </td>
+                    </tr>`;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+            <div class="hr"></div>
+            <div class="text-sm text-muted">
+              Total votes cast: <strong style="color:var(--t1);">${total}</strong>
+            </div>`
+        }
+      </div>
+    `;
+  }
+
+  load();
+</script>
+{% endblock %}

@@ -1,39 +1,53 @@
 from django.urls import path
-from .views import register_admin, register_student, admin_dashboard, create_election, list_elections, open_election, close_election, reset_election, apply_candidate, list_candidates, approve_candidate, reject_candidate, cast_vote, check_vote_status, election_results
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
+from rest_framework_simplejwt.views import TokenRefreshView
+from .views import (
+    register_admin, register_student, admin_dashboard,
+    create_election, list_elections, open_election, close_election, reset_election,
+    apply_candidate, list_candidates, approve_candidate, reject_candidate,
+    cast_vote, check_vote_status, election_results,
+    login_page, register_page, dashboard_page,
+    elections_page, election_detail_page, results_page,
+    CustomTokenObtainPairView,
 )
 
 urlpatterns = [
-    # for AUTH
-    path('login/', TokenObtainPairView.as_view(), name='login'),
+
+    # Template Pages 
+    path('', login_page, name='login-page'),
+    path('register/', register_page, name='register-page'),
+    path('dashboard/', dashboard_page, name='dashboard-page'),
+    path('elections-page/', elections_page, name='elections-page'),
+    path('elections-page/<int:pk>/', election_detail_page, name='election-detail-page'),
+    path('elections-page/<int:pk>/results/', results_page, name='results-page'),
+
+    #  Auth 
+    path('login/', CustomTokenObtainPairView.as_view(), name='login'),
     path('refresh/', TokenRefreshView.as_view(), name='refresh'),
 
-    # for REGISTRATION
+    #  Registration 
     path('admin/register/', register_admin),
     path('student/register/', register_student),
 
-    # protected admin dashboard
+    #  Admin 
     path('admin/dashboard/', admin_dashboard),
 
-    #Elections
+    #  Elections 
     path('elections/create/', create_election),
     path('elections/', list_elections),
-
     path('elections/<int:pk>/open/', open_election),
     path('elections/<int:pk>/close/', close_election),
     path('elections/<int:pk>/reset/', reset_election),
 
+    #  Candidates 
     path('elections/<int:election_id>/apply/', apply_candidate),
     path('elections/<int:election_id>/candidates/', list_candidates),
-
     path('candidates/<int:candidate_id>/approve/', approve_candidate),
     path('candidates/<int:candidate_id>/reject/', reject_candidate),
 
-    path('elections/<int:election_id>/vote/<int:candidate_id>/',cast_vote),
-
+    #  Voting 
+    path('elections/<int:election_id>/vote/<int:candidate_id>/', cast_vote),
     path('elections/<int:election_id>/vote-status/', check_vote_status),
 
+    #  Results 
     path('elections/<int:election_id>/results/', election_results),
 ]
