@@ -7,6 +7,7 @@ from .views import (
     cast_vote, check_vote_status, election_results,
     login_page, register_page, dashboard_page,
     elections_page, election_detail_page, results_page,
+    post_detail_page, list_posts,create_election_page,
     CustomTokenObtainPairView,
 )
 
@@ -16,8 +17,10 @@ urlpatterns = [
     path('', login_page, name='login-page'),
     path('register/', register_page, name='register-page'),
     path('dashboard/', dashboard_page, name='dashboard-page'),
+    path('elections-page/create/', create_election_page, name='create-election-page'),
     path('elections-page/', elections_page, name='elections-page'),
     path('elections-page/<int:pk>/', election_detail_page, name='election-detail-page'),
+    path('elections-page/<int:pk>/posts/<int:post_pk>/', post_detail_page, name='post-detail-page'),
     path('elections-page/<int:pk>/results/', results_page, name='results-page'),
 
     #  Auth 
@@ -38,14 +41,15 @@ urlpatterns = [
     path('elections/<int:pk>/close/', close_election),
     path('elections/<int:pk>/reset/', reset_election),
 
-    #  Candidates 
-    path('elections/<int:election_id>/apply/', apply_candidate),
-    path('elections/<int:election_id>/candidates/', list_candidates),
+    #  Posts & Candidates 
+    path('elections/<int:election_id>/posts/', list_posts),
+    path('elections/<int:election_id>/posts/<int:post_id>/candidates/', list_candidates),
+    path('elections/<int:election_id>/posts/<int:post_id>/apply/', apply_candidate),
     path('candidates/<int:candidate_id>/approve/', approve_candidate),
     path('candidates/<int:candidate_id>/reject/', reject_candidate),
 
     #  Voting 
-    path('elections/<int:election_id>/vote/<int:candidate_id>/', cast_vote),
+    path('elections/<int:election_id>/posts/<int:post_id>/vote/<int:candidate_id>/', cast_vote),
     path('elections/<int:election_id>/vote-status/', check_vote_status),
 
     #  Results 

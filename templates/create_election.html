@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Create Election — CrawfordVote{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+  <a href="/api/elections-page/" class="text-sm text-muted" style="text-decoration:none;">← Back to Elections</a>
+</div>
+
+<div class="page-hd">
+  <h1>Create Election</h1>
+  <p>Fill in the details and add all posts for this election.</p>
+</div>
+
+<div id="alert" class="alert"></div>
+
+<div style="max-width:680px;">
+
+  <!-- Election Details -->
+  <div class="card mb-3">
+    <div class="card-title mb-3">Election Details</div>
+
+    <div class="form-group">
+      <label class="form-label">Election Title</label>
+      <input class="form-control" type="text" id="el-title" placeholder="e.g. 2024/2025 SUG Elections"/>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Description</label>
+      <textarea class="form-control" id="el-desc" placeholder="Brief description of this election…"></textarea>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+      <div class="form-group">
+        <label class="form-label">Start Date & Time</label>
+        <input class="form-control" type="datetime-local" id="el-start"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">End Date & Time</label>
+        <input class="form-control" type="datetime-local" id="el-end"/>
+      </div>
+    </div>
+  </div>
+
+  <!-- Posts -->
+  <div class="card mb-3">
+    <div class="card-title mb-1">Election Posts</div>
+    <p class="text-sm mb-3">Add all the positions available in this election e.g. President, Fin Sec, PRO.</p>
+
+    <div class="flex gap-1 mb-3">
+      <input class="form-control" type="text" id="post-input" placeholder="e.g. President" style="flex:1;"/>
+      <button class="btn btn-outline" id="btn-add-post">+ Add</button>
+    </div>
+
+    <div id="posts-list" style="display:flex;flex-direction:column;gap:.5rem;"></div>
+    <div id="posts-empty" class="text-sm text-muted" style="display:block;">No posts added yet. Add at least one post.</div>
+  </div>
+
+  <button class="btn btn-primary btn-lg btn-block" id="btn-submit">Create Election</button>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  requireAuth();
+  const user = getUser();
+
+  // Redirect non-admins away
+  if (user?.role !== 'admin') window.location.href = '/api/dashboard/';
+
+  let posts = [];
+
+  function renderPosts() {
+    const list  = document.getElementById('posts-list');
+    const empty = document.getElementById('posts-empty');
+
+    if (posts.length === 0) {
+      list.innerHTML = '';
+      empty.style.display = 'block';
+      return;
+    }
+
+    empty.style.display = 'none';
+    list.innerHTML = posts.map((p, i) => `
+      <div style="display:flex;align-items:center;justify-content:space-between;
+                  background:var(--bg-3);border:1px solid var(--b1);
+                  border-radius:var(--r-md);padding:.65rem 1rem;">
+        <span style="font-weight:500;">${p}</span>
+        <button class="btn btn-danger btn-sm" onclick="removePost(${i})">Remove</button>
+      </div>`).join('');
+  }
+
+  function removePost(index) {
+    posts.splice(index, 1);
+    renderPosts();
+  }
+
+  document.getElementById('btn-add-post').addEventListener('click', () => {
+    const input = document.getElementById('post-input');
+    const val   = input.value.trim();
+    if (!val) return;
+    if (posts.includes(val)) {
+      showAlert('alert', `"${val}" is already in the list.`); return;
+    }
+    posts.push(val);
+    input.value = '';
+    renderPosts();
+  });
+
+  // Allow Enter key to add post
+  document.getElementById('post-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('btn-add-post').click();
+  });
+
+  document.getElementById('btn-submit').addEventListener('click', async () => {
+    const title = document.getElementById('el-title').value.trim();
+    const desc  = document.getElementById('el-desc').value.trim();
+    const start = document.getElementById('el-start').value;
+    const end   = document.getElementById('el-end').value;
+
+    if (!title || !desc || !start || !end) {
+      showAlert('alert', 'Please fill in all election details.'); return;
+    }
+    if (posts.length === 0) {
+      showAlert('alert', 'Please add at least one post.'); return;
+    }
+    if (new Date(end) <= new Date(start)) {
+      showAlert('alert', 'End date must be after start date.'); return;
+    }
+
+    const btn = document.getElementById('btn-submit');
+    btn.disabled = true; btn.textContent = 'Creating…';
+
+    try {
+      const res  = await apiPost('/elections/create/', {
+        title,
+        description: desc,
+        start_time:  new Date(start).toISOString(),
+        end_time:    new Date(end).toISOString(),
+        posts,
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        showAlert('alert', 'Election created successfully! Redirecting…', 'success');
+        setTimeout(() => window.location.href = '/api/elections-page/', 1500);
+      } else {
+        const msg = data.error || Object.values(data)[0] || 'Failed to create election.';
+        showAlert('alert', msg);
+      }
+    } catch {
+      showAlert('alert', 'Network error. Is the server running?');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Create Election';
+    }
+  });
+</script>
+{% endblock %}

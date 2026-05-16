@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="mb-3">
-  <a id="back-link" href="/api/elections-page/" class="text-sm text-muted" style="text-decoration:none;">← Back to Election</a>
+  <a id="back-link" href="#" class="text-sm text-muted" style="text-decoration:none;">← Back to Election</a>
 </div>
 
 <div id="alert" class="alert"></div>
@@ -14,7 +14,8 @@
 {% block extra_js %}
 <script>
   requireAuth();
-  const elId = window.location.pathname.split('/').filter(Boolean)[2];
+  const parts = window.location.pathname.split('/').filter(Boolean);
+  const elId  = parts[2];
   document.getElementById('back-link').href = `/api/elections-page/${elId}/`;
 
   async function load() {
@@ -27,77 +28,81 @@
   }
 
   function render(data) {
-    const results = data.results || [];
-    const winner  = data.winner;
-    const total   = results.reduce((s, r) => s + r.votes, 0);
+    const postResults = data.results || [];
 
     document.getElementById('page-out').innerHTML = `
-
       <div class="page-hd">
-        <h1>Results</h1>
+        <h1>Election Results</h1>
         <p>${data.election}</p>
       </div>
 
-      <!-- Winner banner -->
-      ${winner && winner.votes > 0 ? `
-      <div class="winner-banner">
-        <div class="w-label">🏆 Winner</div>
-        <div class="w-name">${winner.candidate_name}</div>
-        <div class="w-meta">
-          ${winner.votes} vote${winner.votes !== 1 ? 's' : ''} ·
-          ${total > 0 ? Math.round(winner.votes / total * 100) : 0}% of total
-          ${winner.department ? ' · ' + winner.department : ''}
-        </div>
-      </div>` : `
-      <div class="alert alert-info show mb-4">No votes have been cast yet.</div>`}
+      ${postResults.length === 0
+        ? `<div class="empty-state"><span class="empty-icon">🗳</span><p>No results yet.</p></div>`
+        : postResults.map(pr => {
+            const total = pr.candidates.reduce((s, c) => s + c.votes, 0);
+            return `
+            <div class="card mb-3">
 
-      <!-- Leaderboard -->
-      <div class="card">
-        <div class="card-title mb-3">Full Leaderboard</div>
+              <!-- Post title -->
+              <div class="flex-between mb-3">
+                <h2 style="font-size:1.05rem;">${pr.post_title}</h2>
+                <span class="text-xs text-muted">${total} vote${total !== 1 ? 's' : ''} total</span>
+              </div>
 
-        ${results.length === 0
-          ? `<div class="empty-state"><p>No candidates to show.</p></div>`
-          : `<div class="tbl-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th style="width:40px;">#</th>
-                    <th>Candidate</th>
-                    <th>Department</th>
-                    <th style="width:80px;">Votes</th>
-                    <th style="width:220px;">Share</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${results.map((r, i) => {
-                    const pct = total > 0 ? Math.round(r.votes / total * 100) : 0;
-                    return `
+              <!-- Winner -->
+              ${pr.winner && pr.winner.votes > 0 ? `
+              <div style="background:var(--accent-dim);border:1px solid rgba(79,142,247,.25);border-radius:var(--r-md);padding:1rem 1.25rem;margin-bottom:1.25rem;">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin-bottom:.35rem;">🏆 Winner</div>
+                <div style="font-family:var(--f-display);font-size:1.3rem;font-weight:800;color:var(--t1);">${pr.winner.candidate_name}</div>
+                <div style="font-size:13px;color:var(--accent);margin-top:.25rem;">
+                  ${pr.winner.votes} vote${pr.winner.votes !== 1 ? 's' : ''}
+                  · ${total > 0 ? Math.round(pr.winner.votes / total * 100) : 0}%
+                  ${pr.winner.department ? ' · ' + pr.winner.department : ''}
+                </div>
+              </div>` : `
+              <div class="alert alert-info show mb-3">No votes cast for this post yet.</div>`}
+
+              <!-- Leaderboard -->
+              ${pr.candidates.length > 0 ? `
+              <div class="tbl-wrap">
+                <table>
+                  <thead>
                     <tr>
-                      <td class="font-display text-muted">${i + 1}</td>
-                      <td style="font-weight:500;color:var(--t1);">
-                        ${i === 0 && r.votes > 0 ? '🏆 ' : ''}${r.candidate_name}
-                      </td>
-                      <td>${r.department || '—'}</td>
-                      <td class="font-display text-accent" style="font-weight:700;">${r.votes}</td>
-                      <td>
-                        <div class="prog-wrap">
-                          <div class="prog-bar">
-                            <div class="prog-fill" style="width:${pct}%;"></div>
+                      <th style="width:40px;">#</th>
+                      <th>Candidate</th>
+                      <th>Department</th>
+                      <th style="width:70px;">Votes</th>
+                      <th style="width:200px;">Share</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${pr.candidates.map((c, i) => {
+                      const pct = total > 0 ? Math.round(c.votes / total * 100) : 0;
+                      return `
+                      <tr>
+                        <td class="font-display text-muted">${i + 1}</td>
+                        <td style="font-weight:500;color:var(--t1);">
+                          ${i === 0 && c.votes > 0 ? '🏆 ' : ''}${c.candidate_name}
+                        </td>
+                        <td>${c.department || '—'}</td>
+                        <td class="font-display text-accent" style="font-weight:700;">${c.votes}</td>
+                        <td>
+                          <div class="prog-wrap">
+                            <div class="prog-bar">
+                              <div class="prog-fill" style="width:${pct}%;"></div>
+                            </div>
+                            <span class="text-xs text-muted">${pct}%</span>
                           </div>
-                          <span class="text-xs text-muted">${pct}%</span>
-                        </div>
-                      </td>
-                    </tr>`;
-                  }).join('')}
-                </tbody>
-              </table>
-            </div>
-            <div class="hr"></div>
-            <div class="text-sm text-muted">
-              Total votes cast: <strong style="color:var(--t1);">${total}</strong>
-            </div>`
-        }
-      </div>
+                        </td>
+                      </tr>`;
+                    }).join('')}
+                  </tbody>
+                </table>
+              </div>` : ''}
+
+            </div>`;
+          }).join('')
+      }
     `;
   }
 
