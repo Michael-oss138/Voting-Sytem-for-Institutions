@@ -135,6 +135,8 @@ def open_election(request, pk):
     if not request.user.is_staff:
         return Response({"error": "Admins only"}, status=403)
     election = get_object_or_404(Election, id=pk)
+    if election.created_by != request.user:
+        return Response({"error": "You can only manage elections you created"}, status=403)
     election.status = 'opened'
     election.is_manually_controlled = True
     election.save()
@@ -147,6 +149,8 @@ def close_election(request, pk):
     if not request.user.is_staff:
         return Response({"error": "Admins only"}, status=403)
     election = get_object_or_404(Election, id=pk)
+    if election.created_by != request.user:
+        return Response({"error": "You can only manage elections you created"}, status=403)
     election.status = 'closed'
     election.is_manually_controlled = True
     election.save()
@@ -159,6 +163,8 @@ def reset_election(request, pk):
     if not request.user.is_staff:
         return Response({"error": "Admins only"}, status=403)
     election = get_object_or_404(Election, id=pk)
+    if election.created_by != request.user:
+        return Response({"error": "You can only manage elections you created"}, status=403)
     election.status = 'draft'
     election.is_manually_controlled = False
     election.save()

@@ -39,6 +39,7 @@
 
   function render(el, posts) {
     const isAdmin = user?.role === 'admin';
+    const isOwner = isAdmin && String(el.created_by) === String(user.user_id);
 
     document.getElementById('page-out').innerHTML = `
 
@@ -67,7 +68,7 @@
         </div>
       </div>
 
-      ${isAdmin ? `
+      ${isOwner ? `
       <div class="admin-bar mb-3">
         <span class="admin-bar-label">Controls</span>
         <button class="btn btn-success btn-sm" id="btn-open"  ${el.status === 'opened' ? 'disabled' : ''}>Open</button>
