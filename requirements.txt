@@ -81,7 +81,6 @@ python-dotenv==1.1.1
 python-engineio==4.12.2
 python-socketio==5.13.0
 python-telegram-bot==13.15
-python==3.9.13
 pytz==2025.2
 PyYAML==6.0.2
 reportlab==4.4.6
