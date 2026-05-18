@@ -298,3 +298,100 @@ tbody tr:last-child td { border-bottom: none; }
 .text-danger  { color: var(--red); }
 .font-display { font-family: var(--f-display); }
 .w-full       { width: 100%; }
+
+
+/* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+
+  /* Navbar */
+  .nav-inner {
+    padding: 0 1rem;
+  }
+  .nav-center {
+    display: none;
+  }
+  .nav-username {
+    display: none;
+  }
+
+  /* Page */
+  .page-wrap {
+    padding: 1.5rem 1rem;
+  }
+
+  /* Headings */
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.2rem; }
+
+  /* Grids — stack to single column */
+  .grid-2,
+  .grid-3,
+  .grid-4 {
+    grid-template-columns: 1fr;
+  }
+
+  /* Stat grid — 2 columns on mobile */
+  .stat-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* Auth box */
+  .auth-shell {
+    align-items: flex-start;
+    padding: 1.5rem 1rem;
+  }
+  .auth-card {
+    padding: 1.5rem 1.25rem;
+  }
+
+  /* Admin bar */
+  .admin-bar {
+    flex-wrap: wrap;
+    gap: .5rem;
+  }
+
+  /* Tables — make them scrollable */
+  .tbl-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Buttons */
+  .btn-lg {
+    padding: 11px 20px;
+    font-size: 14px;
+  }
+
+  /* Date grid in election detail */
+  .card [style*="grid-template-columns:1fr 1fr"] {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+  }
+
+  /* Filter tabs — wrap */
+  .filter-tabs {
+    flex-wrap: wrap;
+  }
+
+  /* Page header flex — stack on mobile */
+  .flex-between.page-hd {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  /* Create election date grid */
+  [style*="grid-template-columns:1fr 1fr"] {
+    display: flex !important;
+    flex-direction: column;
+  }
+
+  /* Winner banner */
+  .winner-banner {
+    padding: 1.25rem;
+  }
+  .winner-banner .w-name {
+    font-size: 1.4rem;
+  }
+}
