@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="mb-3">
-  <a href="/api/elections-page/" class="text-sm text-muted" style="text-decoration:none;">← Back to Elections</a>
+  <a href="/elections-page/" class="text-sm text-muted" style="text-decoration:none;">← Back to Elections</a>
 </div>
 
 <div class="page-hd">
@@ -67,7 +67,7 @@
   const user = getUser();
 
   // Redirect non-admins away
-  if (user?.role !== 'admin') window.location.href = '/api/dashboard/';
+  if (user?.role !== 'admin') window.location.href = '/dashboard/';
 
   let posts = [];
 
@@ -144,7 +144,7 @@
 
       if (res.ok) {
         showAlert('alert', 'Election created successfully! Redirecting…', 'success');
-        setTimeout(() => window.location.href = '/api/elections-page/', 1500);
+        setTimeout(() => window.location.href = '/elections-page/', 1500);
       } else {
         const msg = data.error || Object.values(data)[0] || 'Failed to create election.';
         showAlert('alert', msg);

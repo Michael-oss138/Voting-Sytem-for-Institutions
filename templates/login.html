@@ -40,7 +40,7 @@
     </div>
 
     <div class="auth-foot">
-      New here? <a href="/api/register/">Create a student account</a>
+      New here? <a href="/register/">Create a student account</a>
     </div>
 
   </div>
@@ -72,7 +72,7 @@
           role:     payload.role     || 'student',
           user_id:  payload.user_id,
         });
-        window.location.href = '/api/dashboard/';
+        window.location.href = '/dashboard/';
       } else {
         const msg = data.detail || data.non_field_errors?.[0] || 'Invalid username or password.';
         showAlert('alert', msg);

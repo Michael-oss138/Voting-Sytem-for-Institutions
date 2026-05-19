@@ -2,7 +2,7 @@
 
 async function apiFetch(endpoint, options = {}) {
   const token = getAccessToken();
-  const res = await fetch(`/api${endpoint}`, {
+  const res = await fetch(endpoint, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -11,7 +11,7 @@ async function apiFetch(endpoint, options = {}) {
     },
   });
   // Auto-redirect on 401
-  if (res.status === 401) { clearTokens(); window.location.href = '/api/'; }
+  if (res.status === 401) { clearTokens(); window.location.href = '/'; }
   return res;
 }
 

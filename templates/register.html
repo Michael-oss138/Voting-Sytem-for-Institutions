@@ -45,7 +45,7 @@
     </div>
 
     <div class="auth-foot">
-      Already have an account? <a href="/api/">Sign in</a>
+      Already have an account? <a href="/">Sign in</a>
     </div>
 
   </div>
@@ -78,7 +78,7 @@
 
       if (res.ok) {
         showAlert('alert', 'Account created! Taking you to login…', 'success');
-        setTimeout(() => window.location.href = '/api/', 1500);
+        setTimeout(() => window.location.href = '/', 1500);
       } else {
         const msg = data.username?.[0] || data.password?.[0] || 'Registration failed. Try a different username.';
         showAlert('alert', msg);

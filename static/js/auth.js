@@ -29,9 +29,9 @@ function decodeToken(token) {
 }
 
 function requireAuth() {
-  if (!isLoggedIn()) window.location.href = '/api/';
+  if (!isLoggedIn()) window.location.href = '/';
 }
 
 function redirectIfLoggedIn() {
-  if (isLoggedIn()) window.location.href = '/api/dashboard/';
+  if (isLoggedIn()) window.location.href = '/dashboard/';
 }

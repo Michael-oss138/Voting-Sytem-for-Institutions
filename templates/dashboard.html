@@ -9,7 +9,7 @@
     <p id="welcome-sub">Loading…</p>
   </div>
   <div id="admin-new-btn" style="display:none;">
-    <a href="/api/elections-page/create/" class="btn btn-primary">+ New Election</a>
+    <a href="/elections-page/create/" class="btn btn-primary">+ New Election</a>
   </div>
 </div>
 
@@ -36,7 +36,7 @@
 
 <div class="flex-between mb-2">
   <h2 style="font-size:.95rem; color:var(--t2); text-transform:uppercase; letter-spacing:.06em;">Recent Elections</h2>
-  <a href="/api/elections-page/" class="text-sm text-accent">View all →</a>
+  <a href="/elections-page/" class="text-sm text-accent">View all →</a>
 </div>
 
 <div id="elections-out"><div class="loading">Loading elections…</div></div>
@@ -75,7 +75,7 @@
       }
 
       out.innerHTML = `<div class="grid-2">${recent.map(e => `
-        <a class="card card-link" href="/api/elections-page/${e.id}/">
+        <a class="card card-link" href="/elections-page/${e.id}/">
           <div class="flex-between mb-1">
             ${statusBadge(e.status)}
             <span class="text-xs text-muted">#${e.id}</span>

@@ -16,12 +16,12 @@
   requireAuth();
   const user = getUser();
 
-  // URL is /api/elections-page/<elId>/posts/<postId>/
+  // URL is /elections-page/<elId>/posts/<postId>/
   const parts  = window.location.pathname.split('/').filter(Boolean);
   const elId   = parts[2];
   const postId = parts[4];
 
-  document.getElementById('back-link').href = `/api/elections-page/${elId}/`;
+  document.getElementById('back-link').href = `/elections-page/${elId}/`;
 
   async function load() {
     try {

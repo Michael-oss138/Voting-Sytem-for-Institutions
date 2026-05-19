@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="mb-3">
-  <a href="/api/elections-page/" class="text-sm text-muted" style="text-decoration:none;">← Back to Elections</a>
+  <a href="/elections-page/" class="text-sm text-muted" style="text-decoration:none;">← Back to Elections</a>
 </div>
 
 <div id="alert" class="alert"></div>
@@ -52,7 +52,7 @@
           <h1 style="font-size:1.65rem;">${el.title}</h1>
           <p class="mt-1">${el.description || ''}</p>
         </div>
-        ${isAdmin ? `<a href="/api/elections-page/${el.id}/results/" class="btn btn-outline">View Results</a>` : ''}
+        ${isAdmin ? `<a href="/elections-page/${el.id}/results/" class="btn btn-outline">View Results</a>` : ''}
       </div>
 
       <div class="card mb-3" style="padding:1rem 1.4rem;">
@@ -85,7 +85,7 @@
         ? `<div class="empty-state"><span class="empty-icon">📋</span><p>No posts added to this election yet.</p></div>`
         : `<div class="grid-2">
             ${posts.map(p => `
-              <a href="/api/elections-page/${el.id}/posts/${p.id}/" class="card card-link" style="text-decoration:none;">
+              <a href="/elections-page/${el.id}/posts/${p.id}/" class="card card-link" style="text-decoration:none;">
                 <div class="flex-between mb-1">
                   <div class="card-title">${p.title}</div>
                   <span class="badge badge-approved">${p.candidate_count} candidate${p.candidate_count !== 1 ? 's' : ''}</span>
