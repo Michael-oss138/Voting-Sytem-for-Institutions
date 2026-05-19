@@ -15,7 +15,7 @@
 <script>
   requireAuth();
   const parts = window.location.pathname.split('/').filter(Boolean);
-  const elId  = parts[2];
+  const elId  = parts[1];
   document.getElementById('back-link').href = `/elections-page/${elId}/`;
 
   async function load() {

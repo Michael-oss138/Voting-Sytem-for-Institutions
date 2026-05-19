@@ -15,7 +15,7 @@
 <script>
   requireAuth();
   const user = getUser();
-  const elId = window.location.pathname.split('/').filter(Boolean)[2];
+  const elId = window.location.pathname.split('/').filter(Boolean)[1];
 
   async function load() {
     try {

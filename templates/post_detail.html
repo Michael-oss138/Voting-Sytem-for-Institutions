@@ -18,8 +18,8 @@
 
   // URL is /elections-page/<elId>/posts/<postId>/
   const parts  = window.location.pathname.split('/').filter(Boolean);
-  const elId   = parts[2];
-  const postId = parts[4];
+  const elId   = parts[1];
+  const postId = parts[3];
 
   document.getElementById('back-link').href = `/elections-page/${elId}/`;
 
