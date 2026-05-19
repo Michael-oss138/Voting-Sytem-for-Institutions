@@ -2,3 +2,5 @@ db.sqlite3
 .DS_Store
 -d
 -H
+staticfiles/
+venv/
