@@ -108,6 +108,11 @@ def create_election(request):
 @permission_classes([IsAuthenticated])
 def list_elections(request):
     elections = Election.objects.all()
+
+    for election in elections:
+        if not election.is_manually_controlled:
+            election.update_status()
+
     serializer = ElectionSerializer(elections, many=True)
     return Response(serializer.data)
 
@@ -179,9 +184,9 @@ def apply_candidate(request, election_id, post_id):
     election = get_object_or_404(Election, id=election_id)
     post     = get_object_or_404(Post, id=post_id, election=election)
 
-    # Check if already applied for this post
-    if Candidate.objects.filter(user=request.user, election=election, post=post).exists():
-        return Response({"error": "You have already applied for this post"}, status=400)
+    # Check if already applied for any post
+    if Candidate.objects.filter(user=request.user).exists():
+        return Response({"error": "You have already applied as a candidate in an election"}, status=400)
 
     cgpa       = float(request.data.get('cgpa', 0))
     department = request.data.get('department')
