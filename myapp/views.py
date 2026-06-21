@@ -8,6 +8,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.db.models import Count
+from .ai import analyse_manifesto
 
 
 #  JWT CUSTOM TOKEN 
@@ -192,8 +193,12 @@ def apply_candidate(request, election_id, post_id):
     department = request.data.get('department')
     manifesto  = request.data.get('manifesto')
 
-    status_value = 'approved' if cgpa >= 3.0 else 'rejected'
+    ai_result = analyse_manifesto(manifesto)
 
+    if cgpa >= 3.0 and ai_result['ai_score'] in ['Strong', 'Moderate']:
+        status_value = 'approved'
+    else:
+        status_value = 'rejected'
     candidate = Candidate.objects.create(
         user=request.user,
         election=election,
@@ -203,6 +208,11 @@ def apply_candidate(request, election_id, post_id):
         department=department,
         status=status_value
     )
+    
+    candidate.ai_theme      = ai_result['ai_theme']
+    candidate.ai_score      = ai_result['ai_score']
+    candidate.ai_confidence = ai_result['ai_confidence']
+    candidate.save()
 
     return Response({
         "message": "Application submitted",
@@ -219,13 +229,17 @@ def list_candidates(request, election_id, post_id):
 
     data = [
         {
-            "id":         c.id,
-            "username":   c.user.username,
-            "manifesto":  c.manifesto,
-            "cgpa":       c.cgpa,
-            "department": c.department,
-            "status":     c.status,
-            "post":       post.title,
+            "id":            c.id,
+            "username":      c.user.username,
+            "manifesto":     c.manifesto,
+            "cgpa":          c.cgpa,
+            "department":    c.department,
+            "status":        c.status,
+            "post":          post.title,
+            # AI fields
+            "ai_theme":      c.ai_theme,
+            "ai_score":      c.ai_score,
+            "ai_confidence": c.ai_confidence,
         }
         for c in candidates
     ]

@@ -103,21 +103,46 @@
       ${candidates.length === 0
         ? `<div class="empty-state"><span class="empty-icon">👤</span><p>No approved candidates for this post yet.</p></div>`
         : `<div class="grid-2">
-            ${candidates.map(c => `
-              <div class="card">
-                <div class="flex-between mb-1">
-                  <div class="card-title">${c.username}</div>
-                  ${statusBadge(c.status)}
+          ${candidates.map(c => `
+            <div class="card">
+              <div class="flex-between mb-1">
+                <div class="card-title">${c.username}</div>
+                ${statusBadge(c.status)}
+              </div>
+              <div class="text-sm text-muted">${c.department}</div>
+              <div class="hr"></div>
+              <p class="text-sm" style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">
+                ${c.manifesto || ''}
+              </p>
+          
+              ${isAdmin ? `
+              <div style="margin-top:.85rem; background:var(--bg-2); border:1px solid var(--b1);
+                          border-radius:var(--r-md); padding:.85rem 1rem;">
+                <div style="font-size:11px; font-weight:700; text-transform:uppercase;
+                            letter-spacing:.08em; color:var(--accent); margin-bottom:.6rem;">
+                  🤖 AI Manifesto Analysis
                 </div>
-                <div class="text-sm text-muted">${c.department}</div>
-                <div class="hr"></div>
-                <p class="text-sm" style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">
-                  ${c.manifesto || ''}
-                </p>
-                ${!isAdmin && isOpen && !hasVoted
-                  ? `<button class="btn btn-primary btn-sm mt-2 vote-btn" data-id="${c.id}">Cast Vote</button>`
-                  : ''}
-              </div>`).join('')}
+                <div style="display:flex; flex-wrap:wrap; gap:.5rem;">
+                  <span class="badge" style="background:var(--accent-dim); color:var(--accent);
+                        border:1px solid rgba(79,142,247,.3);">
+                    Theme: ${c.ai_theme || '—'}
+                  </span>
+                  <span class="badge" style="
+                    background:${c.ai_score === 'Strong' ? 'var(--green-dim)' : c.ai_score === 'Moderate' ? 'var(--amber-dim)' : 'var(--red-dim)'};
+                    color:${c.ai_score === 'Strong' ? 'var(--green)' : c.ai_score === 'Moderate' ? 'var(--amber)' : 'var(--red)'};
+                    border:1px solid ${c.ai_score === 'Strong' ? 'var(--green)' : c.ai_score === 'Moderate' ? 'var(--amber)' : 'var(--red)'};">
+                    Score: ${c.ai_score || '—'}
+                  </span>
+                  <span class="badge" style="background:var(--bg-3); color:var(--t2); border:1px solid var(--b2);">
+                    Confidence: ${c.ai_confidence || 0}%
+                  </span>
+                </div>
+              </div>` : ''}
+          
+              ${!isAdmin && isOpen && !hasVoted
+                ? `<button class="btn btn-primary btn-sm mt-2 vote-btn" data-id="${c.id}">Cast Vote</button>`
+                : ''}
+            </div>`).join('')}
           </div>`
       }
     `;

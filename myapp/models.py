@@ -76,6 +76,12 @@ class Candidate(models.Model):
     status     = models.CharField(max_length=20, choices=STATUS_CHOICES, default='rejected')
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # AI Analysis fields
+    ai_theme      = models.CharField(max_length=50, blank=True, null=True)
+    ai_score      = models.CharField(max_length=20, blank=True, null=True)
+    ai_confidence = models.FloatField(blank=True, null=True)
+
+
     class Meta:
         # A student can only apply once per post per election
         unique_together = ('user', 'election', 'post')
