@@ -78,6 +78,11 @@ def create_election(request):
             {"error": "Only admins can create elections"},
             status=status.HTTP_403_FORBIDDEN
         )
+    if Election.objects.filter(created_by=request.user).exists():
+        return Response(
+            {"error": "You have already created an election. You cannot create more than one."},
+            status=400
+        )
 
     # Extract posts from request
     posts = request.data.get('posts', [])
@@ -185,20 +190,18 @@ def apply_candidate(request, election_id, post_id):
     election = get_object_or_404(Election, id=election_id)
     post     = get_object_or_404(Post, id=post_id, election=election)
 
-    # Check if already applied for any post
     if Candidate.objects.filter(user=request.user).exists():
-        return Response({"error": "You have already applied as a candidate in an election"}, status=400)
+        return Response({"error": "You have already applied as a candidate in an election."}, status=400)
 
-    cgpa       = float(request.data.get('cgpa', 0))
-    department = request.data.get('department')
-    manifesto  = request.data.get('manifesto')
+    cgpa            = float(request.data.get('cgpa', 0))
+    department      = request.data.get('department')
+    manifesto       = request.data.get('manifesto')
+    date_of_birth   = request.data.get('date_of_birth')
+    profile_picture = request.FILES.get('profile_picture')
 
-    ai_result = analyse_manifesto(manifesto)
+    ai_result    = analyse_manifesto(manifesto)
+    status_value = 'approved' if cgpa >= 3.0 and ai_result['ai_score'] in ['Strong', 'Moderate'] else 'rejected'
 
-    if cgpa >= 3.0 and ai_result['ai_score'] in ['Strong', 'Moderate']:
-        status_value = 'approved'
-    else:
-        status_value = 'rejected'
     candidate = Candidate.objects.create(
         user=request.user,
         election=election,
@@ -206,19 +209,18 @@ def apply_candidate(request, election_id, post_id):
         manifesto=manifesto,
         cgpa=cgpa,
         department=department,
-        status=status_value
+        date_of_birth=date_of_birth,
+        profile_picture=profile_picture,
+        status=status_value,
+        ai_theme=ai_result['ai_theme'],
+        ai_score=ai_result['ai_score'],
+        ai_confidence=ai_result['ai_confidence'],
     )
-    
-    candidate.ai_theme      = ai_result['ai_theme']
-    candidate.ai_score      = ai_result['ai_score']
-    candidate.ai_confidence = ai_result['ai_confidence']
-    candidate.save()
 
     return Response({
         "message": "Application submitted",
         "status":  candidate.status
     }, status=201)
-
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -240,6 +242,7 @@ def list_candidates(request, election_id, post_id):
             "ai_theme":      c.ai_theme,
             "ai_score":      c.ai_score,
             "ai_confidence": c.ai_confidence,
+            "profile_picture": request.build_absolute_uri(c.profile_picture.url) if c.profile_picture else None,
         }
         for c in candidates
     ]
@@ -386,3 +389,7 @@ def post_detail_page(request, pk, post_pk):
 
 def create_election_page(request):
     return render(request, 'create_election.html')
+
+
+def apply_page(request, pk, post_pk):
+    return render(request, 'apply.html')

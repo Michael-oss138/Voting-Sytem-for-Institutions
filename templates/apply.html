@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Apply — CrawfordVote{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+  <a id="back-link" href="#" class="text-sm text-muted" style="text-decoration:none;">← Back to Post</a>
+</div>
+
+<div class="page-hd">
+  <h1>Candidate Application</h1>
+  <p id="post-subtitle">Applying for a post in this election.</p>
+</div>
+
+<div id="alert" class="alert"></div>
+
+<div style="max-width:620px;">
+  <div class="card">
+
+    <div id="apply-alert" class="alert"></div>
+
+    <!-- Profile Picture -->
+    <div class="form-group">
+      <label class="form-label">Profile Picture</label>
+      <div id="pic-preview" style="width:100px;height:100px;border-radius:50%;
+           background:var(--bg-3);border:2px dashed var(--b2);
+           display:flex;align-items:center;justify-content:center;
+           margin-bottom:.75rem;overflow:hidden;cursor:pointer;"
+           onclick="document.getElementById('a-pic').click()">
+        <span style="font-size:2rem;opacity:.4;">👤</span>
+      </div>
+      <input type="file" id="a-pic" accept="image/*" style="display:none;"/>
+      <div class="text-xs text-muted">Click the circle above to upload your photo. JPG or PNG recommended.</div>
+    </div>
+
+    <div class="hr"></div>
+
+    <!-- Full Name -->
+    <div class="form-group">
+      <label class="form-label">Full Name</label>
+      <input class="form-control" type="text" id="a-fullname" placeholder="e.g. John Adebayo"/>  
+    </div>
+    <!-- Date of Birth -->
+    <div class="form-group">
+      <label class="form-label">Date of Birth</label>
+      <input class="form-control" type="date" id="a-dob"/>
+    </div>
+
+    <!-- Department -->
+    <div class="form-group">
+      <label class="form-label">Department</label>
+      <input class="form-control" type="text" id="a-dept" placeholder="e.g. Computer Science"/>
+    </div>
+
+    <!-- CGPA -->
+    <div class="form-group">
+      <label class="form-label">CGPA <span style="color:var(--t3);font-size:11px;">(Min 3.0 for approval)</span></label>
+      <input class="form-control" type="number" id="a-cgpa" min="0" max="5" step="0.01" placeholder="e.g. 3.75"/>
+    </div>
+
+    <!-- Manifesto -->
+    <div class="form-group">
+      <label class="form-label">Manifesto</label>
+      <div class="text-xs text-muted mb-1">
+        Write a detailed manifesto. Use action words like "will", "ensure", "improve", "create" for a stronger score.
+        Aim for at least 80 words.
+      </div>
+      <textarea class="form-control" id="a-manifesto" rows="7"
+                placeholder="Tell students what you will do for them if elected…"
+                style="min-height:160px;"></textarea>
+      <div class="text-xs text-muted mt-1" id="word-count">0 words</div>
+    </div>
+
+    <button class="btn btn-primary btn-block btn-lg mt-2" id="btn-apply">Submit Application</button>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  requireAuth();
+  const user = getUser();
+
+  const parts  = window.location.pathname.split('/').filter(Boolean);
+  const elId   = parts[1];
+  const postId = parts[3];
+
+  document.getElementById('back-link').href = `/elections-page/${elId}/posts/${postId}/`;
+  formData.append('full_name', document.getElementById('a-fullname').value.trim());
+  formData.append('cgpa', parseFloat(cgpa));
+  // Load post title for subtitle
+  async function loadPostInfo() {
+    try {
+      const res  = await apiGet(`/elections/${elId}/posts/`);
+      const data = res.ok ? await res.json() : [];
+      const post = data.find(p => String(p.id) === String(postId));
+      if (post) {
+        document.getElementById('post-subtitle').textContent =
+          `Applying for: ${post.title}`;
+      }
+    } catch {}
+  }
+  loadPostInfo();
+
+  // Profile picture preview
+  document.getElementById('a-pic').addEventListener('change', function() {
+    const file = this.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const preview = document.getElementById('pic-preview');
+      preview.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;"/>`;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Word count
+  document.getElementById('a-manifesto').addEventListener('input', function() {
+    const words = this.value.trim().split(/\s+/).filter(Boolean).length;
+    const el    = document.getElementById('word-count');
+    el.textContent = `${words} word${words !== 1 ? 's' : ''}`;
+    el.style.color = words >= 80 ? 'var(--green)' : words >= 40 ? 'var(--amber)' : 'var(--red)';
+  });
+
+  // Submit
+  document.getElementById('btn-apply').addEventListener('click', async () => {
+    const dob       = document.getElementById('a-dob').value;
+    const dept      = document.getElementById('a-dept').value.trim();
+    const cgpa      = document.getElementById('a-cgpa').value;
+    const manifesto = document.getElementById('a-manifesto').value.trim();
+    const picFile   = document.getElementById('a-pic').files[0];
+
+    if (!dob || !dept || !cgpa || !manifesto) {
+      showAlert('apply-alert', 'Please fill in all fields.'); return;
+    }
+
+    const btn = document.getElementById('btn-apply');
+    btn.disabled = true; btn.textContent = 'Submitting…';
+
+    try {
+      // Use FormData to handle file upload
+      const formData = new FormData();
+      formData.append('cgpa', parseFloat(cgpa));
+      formData.append('department', dept);
+      formData.append('manifesto', manifesto);
+      formData.append('date_of_birth', dob);
+      if (picFile) formData.append('profile_picture', picFile);
+
+      const token = getAccessToken();
+      const res = await fetch(`/elections/${elId}/posts/${postId}/apply/`, {
+        method: 'POST',
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          // Don't set Content-Type — browser sets it automatically with boundary for FormData
+        },
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        showAlert('apply-alert',
+          `Application ${data.status}! ${data.status === 'rejected' ? '(CGPA below 3.0 or weak manifesto)' : 'You have been approved!'}`,
+          data.status === 'approved' ? 'success' : 'error'
+        );
+        if (data.status === 'approved') {
+          setTimeout(() => window.location.href = `/elections-page/${elId}/posts/${postId}/`, 2000);
+        }
+      } else {
+        showAlert('apply-alert', data.error || 'Application failed.');
+      }
+    } catch {
+      showAlert('apply-alert', 'Network error.');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Submit Application';
+    }
+  });
+</script>
+{% endblock %}

@@ -16,7 +16,6 @@
   requireAuth();
   const user = getUser();
 
-  // URL is /elections-page/<elId>/posts/<postId>/
   const parts  = window.location.pathname.split('/').filter(Boolean);
   const elId   = parts[1];
   const postId = parts[3];
@@ -45,7 +44,6 @@
           `<div class="empty-state"><p>Post not found.</p></div>`; return;
       }
 
-      // Check if user has already voted for this specific post
       const postVoteStatus = voteData.posts?.find(p => String(p.post_id) === String(postId));
       const hasVoted = postVoteStatus?.has_voted || false;
 
@@ -60,39 +58,26 @@
     document.getElementById('page-out').innerHTML = `
 
       <!-- Header -->
-      <div class="page-hd">
-        <div class="flex items-center gap-1 mb-1">
-          ${statusBadge(election.status)}
-          <span class="text-xs text-muted">${election.title}</span>
+      <div class="flex-between page-hd">
+        <div>
+          <div class="flex items-center gap-1 mb-1">
+            ${statusBadge(election.status)}
+            <span class="text-xs text-muted">${election.title}</span>
+          </div>
+          <h1 style="font-size:1.65rem;">${post.title}</h1>
+          ${post.description ? `<p class="mt-1">${post.description}</p>` : ''}
         </div>
-        <h1 style="font-size:1.65rem;">${post.title}</h1>
-        ${post.description ? `<p class="mt-1">${post.description}</p>` : ''}
+
+        <!-- Apply button for students -->
+        ${!isAdmin && isOpen && !hasVoted ? `
+        <a href="/elections-page/${elId}/posts/${postId}/apply/"
+           class="btn btn-primary">Apply for this Post</a>` : ''}
       </div>
 
       <!-- Already voted notice -->
       ${!isAdmin && hasVoted
         ? `<div class="alert alert-success show mb-3">✓ You have already cast your vote for <strong>${post.title}</strong>.</div>`
         : ''}
-
-      <!-- Apply form (student, open election, not voted) -->
-      ${!isAdmin && isOpen && !hasVoted ? `
-      <div class="card mb-4">
-        <div class="card-title mb-3">Apply for ${post.title}</div>
-        <div id="apply-alert" class="alert"></div>
-        <div class="form-group">
-          <label class="form-label">CGPA <span style="color:var(--t3);font-size:11px;">(Min 3.0 for approval)</span></label>
-          <input class="form-control" type="number" id="a-cgpa" min="0" max="5" step="0.01" placeholder="e.g. 3.75"/>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Department</label>
-          <input class="form-control" type="text" id="a-dept" placeholder="e.g. Computer Science"/>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Manifesto</label>
-          <textarea class="form-control" id="a-manifesto" placeholder="Tell students why you deserve their vote…"></textarea>
-        </div>
-        <button class="btn btn-primary" id="btn-apply">Submit Application</button>
-      </div>` : ''}
 
       <!-- Candidates -->
       <div class="flex-between mb-2">
@@ -103,84 +88,63 @@
       ${candidates.length === 0
         ? `<div class="empty-state"><span class="empty-icon">👤</span><p>No approved candidates for this post yet.</p></div>`
         : `<div class="grid-2">
-          ${candidates.map(c => `
-            <div class="card">
-              <div class="flex-between mb-1">
-                <div class="card-title">${c.username}</div>
-                ${statusBadge(c.status)}
-              </div>
-              <div class="text-sm text-muted">${c.department}</div>
-              <div class="hr"></div>
-              <p class="text-sm" style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">
-                ${c.manifesto || ''}
-              </p>
-          
-              ${isAdmin ? `
-              <div style="margin-top:.85rem; background:var(--bg-2); border:1px solid var(--b1);
-                          border-radius:var(--r-md); padding:.85rem 1rem;">
-                <div style="font-size:11px; font-weight:700; text-transform:uppercase;
-                            letter-spacing:.08em; color:var(--accent); margin-bottom:.6rem;">
-                  🤖 AI Manifesto Analysis
+            ${candidates.map(c => `
+              <div class="card">
+                <!-- Profile picture -->
+                <div style="display:flex;align-items:center;gap:1rem;margin-bottom:.85rem;">
+                  <div style="width:56px;height:56px;border-radius:50%;overflow:hidden;
+                              background:var(--bg-3);border:2px solid var(--b2);flex-shrink:0;">
+                    ${c.profile_picture
+                      ? `<img src="${c.profile_picture}" style="width:100%;height:100%;object-fit:cover;"/>`
+                      : `<div style="width:100%;height:100%;display:flex;align-items:center;
+                                    justify-content:center;font-size:1.5rem;opacity:.4;">👤</div>`}
+                  </div>
+                  <div>
+                    <div class="card-title">${c.username}</div>
+                    <div class="text-sm text-muted">${c.department}</div>
+                  </div>
+                  ${statusBadge(c.status)}
                 </div>
-                <div style="display:flex; flex-wrap:wrap; gap:.5rem;">
-                  <span class="badge" style="background:var(--accent-dim); color:var(--accent);
-                        border:1px solid rgba(79,142,247,.3);">
-                    Theme: ${c.ai_theme || '—'}
-                  </span>
-                  <span class="badge" style="
-                    background:${c.ai_score === 'Strong' ? 'var(--green-dim)' : c.ai_score === 'Moderate' ? 'var(--amber-dim)' : 'var(--red-dim)'};
-                    color:${c.ai_score === 'Strong' ? 'var(--green)' : c.ai_score === 'Moderate' ? 'var(--amber)' : 'var(--red)'};
-                    border:1px solid ${c.ai_score === 'Strong' ? 'var(--green)' : c.ai_score === 'Moderate' ? 'var(--amber)' : 'var(--red)'};">
-                    Score: ${c.ai_score || '—'}
-                  </span>
-                  <span class="badge" style="background:var(--bg-3); color:var(--t2); border:1px solid var(--b2);">
-                    Confidence: ${c.ai_confidence || 0}%
-                  </span>
-                </div>
-              </div>` : ''}
-          
-              ${!isAdmin && isOpen && !hasVoted
-                ? `<button class="btn btn-primary btn-sm mt-2 vote-btn" data-id="${c.id}">Cast Vote</button>`
-                : ''}
-            </div>`).join('')}
+
+                <div class="hr"></div>
+
+                <!-- Manifesto -->
+                <p class="text-sm" style="margin-bottom:.5rem;">${c.manifesto || ''}</p>
+
+                <!-- AI Insights — admin only -->
+                ${isAdmin ? `
+                <div style="margin-top:.85rem; background:var(--bg-2); border:1px solid var(--b1);
+                            border-radius:var(--r-md); padding:.85rem 1rem;">
+                  <div style="font-size:11px; font-weight:700; text-transform:uppercase;
+                              letter-spacing:.08em; color:var(--accent); margin-bottom:.6rem;">
+                    🤖 AI Manifesto Analysis
+                  </div>
+                  <div style="display:flex; flex-wrap:wrap; gap:.5rem;">
+                    <span class="badge" style="background:var(--accent-dim); color:var(--accent);
+                          border:1px solid rgba(79,142,247,.3);">
+                      Theme: ${c.ai_theme || '—'}
+                    </span>
+                    <span class="badge" style="
+                      background:${c.ai_score === 'Strong' ? 'var(--green-dim)' : c.ai_score === 'Moderate' ? 'var(--amber-dim)' : 'var(--red-dim)'};
+                      color:${c.ai_score === 'Strong' ? 'var(--green)' : c.ai_score === 'Moderate' ? 'var(--amber)' : 'var(--red)'};
+                      border:1px solid ${c.ai_score === 'Strong' ? 'var(--green)' : c.ai_score === 'Moderate' ? 'var(--amber)' : 'var(--red)'};">
+                      Score: ${c.ai_score || '—'}
+                    </span>
+                    <span class="badge" style="background:var(--bg-3); color:var(--t2); border:1px solid var(--b2);">
+                      Confidence: ${c.ai_confidence || 0}%
+                    </span>
+                  </div>
+                </div>` : ''}
+
+                ${!isAdmin && isOpen && !hasVoted
+                  ? `<button class="btn btn-primary btn-sm mt-2 vote-btn" data-id="${c.id}">Cast Vote</button>`
+                  : ''}
+              </div>`).join('')}
           </div>`
       }
     `;
 
-    bindApply();
     bindVote();
-  }
-
-  function bindApply() {
-    const btn = document.getElementById('btn-apply');
-    if (!btn) return;
-    btn.addEventListener('click', async () => {
-      const cgpa      = document.getElementById('a-cgpa').value;
-      const dept      = document.getElementById('a-dept').value.trim();
-      const manifesto = document.getElementById('a-manifesto').value.trim();
-
-      if (!cgpa || !dept || !manifesto) {
-        showAlert('apply-alert', 'Please fill in all fields.'); return;
-      }
-
-      btn.disabled = true; btn.textContent = 'Submitting…';
-      try {
-        const res  = await apiPost(`/elections/${elId}/posts/${postId}/apply/`, {
-          cgpa: parseFloat(cgpa), department: dept, manifesto
-        });
-        const data = await res.json();
-        if (res.ok) {
-          showAlert('apply-alert',
-            `Application ${data.status}! ${data.status === 'rejected' ? '(CGPA below 3.0)' : ''}`,
-            data.status === 'approved' ? 'success' : 'error'
-          );
-          setTimeout(load, 1400);
-        } else {
-          showAlert('apply-alert', data.error || 'Application failed.');
-        }
-      } catch { showAlert('apply-alert', 'Network error.'); }
-      finally { btn.disabled = false; btn.textContent = 'Submit Application'; }
-    });
   }
 
   function bindVote() {

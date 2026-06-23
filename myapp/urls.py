@@ -8,7 +8,7 @@ from .views import (
     login_page, register_page, dashboard_page,
     elections_page, election_detail_page, results_page,
     post_detail_page, list_posts,create_election_page,
-    CustomTokenObtainPairView,
+    CustomTokenObtainPairView,apply_page
 )
 
 urlpatterns = [
@@ -54,4 +54,6 @@ urlpatterns = [
 
     #  Results 
     path('elections/<int:election_id>/results/', election_results),
+
+    path('elections-page/<int:pk>/posts/<int:post_pk>/apply/', apply_page, name='apply-page'),
 ]

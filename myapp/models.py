@@ -67,29 +67,29 @@ class Candidate(models.Model):
         ('approved', 'Approved'),
         ('rejected', 'Rejected'),
     )
-    user       = models.ForeignKey(User, on_delete=models.CASCADE)
-    election   = models.ForeignKey(Election, on_delete=models.CASCADE)
-    post       = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='candidates')
-    manifesto  = models.TextField()
-    cgpa       = models.FloatField()
-    department = models.CharField(max_length=100)
-    status     = models.CharField(max_length=20, choices=STATUS_CHOICES, default='rejected')
-    created_at = models.DateTimeField(auto_now_add=True)
+
+    user          = models.ForeignKey(User, on_delete=models.CASCADE)
+    election      = models.ForeignKey(Election, on_delete=models.CASCADE)
+    post          = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='candidates')
+    manifesto     = models.TextField()
+    cgpa          = models.FloatField()
+    department    = models.CharField(max_length=100)
+    date_of_birth = models.DateField(blank=True, null=True)       # ← new
+    profile_picture = models.ImageField(upload_to='candidates/', blank=True, null=True)  # ← new
+    status        = models.CharField(max_length=20, choices=STATUS_CHOICES, default='rejected')
+    created_at    = models.DateTimeField(auto_now_add=True)
 
     # AI Analysis fields
     ai_theme      = models.CharField(max_length=50, blank=True, null=True)
     ai_score      = models.CharField(max_length=20, blank=True, null=True)
     ai_confidence = models.FloatField(blank=True, null=True)
 
-
     class Meta:
-        # A student can only apply once per post per election
         unique_together = ('user', 'election', 'post')
 
     def __str__(self):
         return f"{self.user.username} — {self.post.title} — {self.election.title}"
-
-
+        
 class Vote(models.Model):
     voter     = models.ForeignKey(User, on_delete=models.CASCADE)
     election  = models.ForeignKey(Election, on_delete=models.CASCADE)
