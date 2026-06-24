@@ -55,7 +55,7 @@ class Election(models.Model):
 class Post(models.Model):
     """A position/post within an election e.g. President, Fin Sec, PRO"""
     election    = models.ForeignKey(Election, on_delete=models.CASCADE, related_name='posts')
-    title       = models.CharField(max_length=100)  # e.g. "President", "Fin Sec"
+    title       = models.CharField(max_length=100)  
     description = models.TextField(blank=True)
 
     def __str__(self):
@@ -64,32 +64,37 @@ class Post(models.Model):
 
 class Candidate(models.Model):
     STATUS_CHOICES = (
-        ('approved', 'Approved'),
-        ('rejected', 'Rejected'),
+        ('applied',    'Applied'),     
+        ('nominated',  'Nominated'),   
+        ('pending',    'Pending'),     
+        ('approved',   'Approved'),     
+        ('rejected',   'Rejected'),      
     )
 
-    user          = models.ForeignKey(User, on_delete=models.CASCADE)
-    election      = models.ForeignKey(Election, on_delete=models.CASCADE)
-    post          = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='candidates')
-    manifesto     = models.TextField()
-    cgpa          = models.FloatField()
-    department    = models.CharField(max_length=100)
-    date_of_birth = models.DateField(blank=True, null=True)       # ← new
-    profile_picture = models.ImageField(upload_to='candidates/', blank=True, null=True)  # ← new
-    status        = models.CharField(max_length=20, choices=STATUS_CHOICES, default='rejected')
-    created_at    = models.DateTimeField(auto_now_add=True)
+    user              = models.ForeignKey(User, on_delete=models.CASCADE)
+    election          = models.ForeignKey(Election, on_delete=models.CASCADE)
+    post              = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='candidates')
+    full_name         = models.CharField(max_length=100, blank=True, null=True)
+    manifesto         = models.TextField(blank=True, null=True)   
+    cgpa              = models.FloatField()
+    department        = models.CharField(max_length=100)
+    date_of_birth     = models.DateField(blank=True, null=True)
+    profile_picture   = models.ImageField(upload_to='candidates/', blank=True, null=True)
+    status            = models.CharField(max_length=20, choices=STATUS_CHOICES, default='applied')
+    application_attempts = models.IntegerField(default=0)        
+    created_at        = models.DateTimeField(auto_now_add=True)
 
     # AI Analysis fields
-    ai_theme      = models.CharField(max_length=50, blank=True, null=True)
-    ai_score      = models.CharField(max_length=20, blank=True, null=True)
-    ai_confidence = models.FloatField(blank=True, null=True)
+    ai_theme          = models.CharField(max_length=50, blank=True, null=True)
+    ai_score          = models.CharField(max_length=20, blank=True, null=True)
+    ai_confidence     = models.FloatField(blank=True, null=True)
 
     class Meta:
         unique_together = ('user', 'election', 'post')
 
     def __str__(self):
         return f"{self.user.username} — {self.post.title} — {self.election.title}"
-        
+
 class Vote(models.Model):
     voter     = models.ForeignKey(User, on_delete=models.CASCADE)
     election  = models.ForeignKey(Election, on_delete=models.CASCADE)

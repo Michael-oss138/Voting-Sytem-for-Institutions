@@ -25,12 +25,11 @@
       <div id="pic-preview" style="width:100px;height:100px;border-radius:50%;
            background:var(--bg-3);border:2px dashed var(--b2);
            display:flex;align-items:center;justify-content:center;
-           margin-bottom:.75rem;overflow:hidden;cursor:pointer;"
-           onclick="document.getElementById('a-pic').click()">
+           margin-bottom:.75rem;overflow:hidden;cursor:pointer;">
         <span style="font-size:2rem;opacity:.4;">👤</span>
       </div>
-      <input type="file" id="a-pic" accept="image/*" style="display:none;"/>
-      <div class="text-xs text-muted">Click the circle above to upload your photo. JPG or PNG recommended.</div>
+      <input type="file" id="a-pic" accept="image/*" style="margin-bottom:.5rem;"/>
+      <div class="text-xs text-muted">Upload your photo. JPG or PNG recommended.</div>
     </div>
 
     <div class="hr"></div>
@@ -38,8 +37,9 @@
     <!-- Full Name -->
     <div class="form-group">
       <label class="form-label">Full Name</label>
-      <input class="form-control" type="text" id="a-fullname" placeholder="e.g. John Adebayo"/>  
+      <input class="form-control" type="text" id="a-fullname" placeholder="e.g. John Adebayo"/>
     </div>
+
     <!-- Date of Birth -->
     <div class="form-group">
       <label class="form-label">Date of Birth</label>
@@ -87,8 +87,7 @@
   const postId = parts[3];
 
   document.getElementById('back-link').href = `/elections-page/${elId}/posts/${postId}/`;
-  formData.append('full_name', document.getElementById('a-fullname').value.trim());
-  formData.append('cgpa', parseFloat(cgpa));
+
   // Load post title for subtitle
   async function loadPostInfo() {
     try {
@@ -96,8 +95,7 @@
       const data = res.ok ? await res.json() : [];
       const post = data.find(p => String(p.id) === String(postId));
       if (post) {
-        document.getElementById('post-subtitle').textContent =
-          `Applying for: ${post.title}`;
+        document.getElementById('post-subtitle').textContent = `Applying for: ${post.title}`;
       }
     } catch {}
   }
@@ -110,7 +108,7 @@
     const reader = new FileReader();
     reader.onload = e => {
       const preview = document.getElementById('pic-preview');
-      preview.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;"/>`;
+      preview.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"/>`;
     };
     reader.readAsDataURL(file);
   });
@@ -125,13 +123,14 @@
 
   // Submit
   document.getElementById('btn-apply').addEventListener('click', async () => {
+    const fullname  = document.getElementById('a-fullname').value.trim();
     const dob       = document.getElementById('a-dob').value;
     const dept      = document.getElementById('a-dept').value.trim();
     const cgpa      = document.getElementById('a-cgpa').value;
     const manifesto = document.getElementById('a-manifesto').value.trim();
     const picFile   = document.getElementById('a-pic').files[0];
 
-    if (!dob || !dept || !cgpa || !manifesto) {
+    if (!fullname || !dob || !dept || !cgpa || !manifesto) {
       showAlert('apply-alert', 'Please fill in all fields.'); return;
     }
 
@@ -139,8 +138,8 @@
     btn.disabled = true; btn.textContent = 'Submitting…';
 
     try {
-      // Use FormData to handle file upload
       const formData = new FormData();
+      formData.append('full_name', fullname);
       formData.append('cgpa', parseFloat(cgpa));
       formData.append('department', dept);
       formData.append('manifesto', manifesto);
@@ -152,7 +151,6 @@
         method: 'POST',
         headers: {
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-          // Don't set Content-Type — browser sets it automatically with boundary for FormData
         },
         body: formData,
       });
@@ -170,8 +168,8 @@
       } else {
         showAlert('apply-alert', data.error || 'Application failed.');
       }
-    } catch {
-      showAlert('apply-alert', 'Network error.');
+    } catch (err) {
+      showAlert('apply-alert', 'Network error: ' + err.message);
     } finally {
       btn.disabled = false; btn.textContent = 'Submit Application';
     }

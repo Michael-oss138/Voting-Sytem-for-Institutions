@@ -190,59 +190,112 @@ def apply_candidate(request, election_id, post_id):
     election = get_object_or_404(Election, id=election_id)
     post     = get_object_or_404(Post, id=post_id, election=election)
 
-    if Candidate.objects.filter(user=request.user).exists():
-        return Response({"error": "You have already applied as a candidate in an election."}, status=400)
+    # Check if already applied anywhere (and not permanently blocked)
+    existing = Candidate.objects.filter(user=request.user).first()
+    if existing:
+        if existing.application_attempts >= 2:
+            return Response({"error": "You have been permanently blocked from applying."}, status=400)
+        if existing.status != 'rejected':
+            return Response({"error": "You have already applied in an election."}, status=400)
 
     cgpa            = float(request.data.get('cgpa', 0))
     department      = request.data.get('department')
-    manifesto       = request.data.get('manifesto')
     date_of_birth   = request.data.get('date_of_birth')
     profile_picture = request.FILES.get('profile_picture')
-
-    ai_result    = analyse_manifesto(manifesto)
-    status_value = 'approved' if cgpa >= 3.0 and ai_result['ai_score'] in ['Strong', 'Moderate'] else 'rejected'
+    full_name       = request.data.get('full_name')
 
     candidate = Candidate.objects.create(
         user=request.user,
         election=election,
         post=post,
-        manifesto=manifesto,
+        full_name=full_name,
         cgpa=cgpa,
         department=department,
         date_of_birth=date_of_birth,
         profile_picture=profile_picture,
-        status=status_value,
-        ai_theme=ai_result['ai_theme'],
-        ai_score=ai_result['ai_score'],
-        ai_confidence=ai_result['ai_confidence'],
+        status='applied',
     )
 
     return Response({
-        "message": "Application submitted",
+        "message": "Application submitted. Wait for nomination.",
         "status":  candidate.status
     }, status=201)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def nominate_candidate(request, candidate_id):
+    if not request.user.is_staff:
+        return Response({"error": "Admins only"}, status=403)
+    candidate = get_object_or_404(Candidate, id=candidate_id)
+    if candidate.status != 'applied':
+        return Response({"error": "Candidate is not in applied state"}, status=400)
+    candidate.status = 'nominated'
+    candidate.save()
+    return Response({"message": "Candidate nominated successfully"})   
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def submit_manifesto(request, election_id, post_id):
+    election  = get_object_or_404(Election, id=election_id)
+    post      = get_object_or_404(Post, id=post_id, election=election)
+    candidate = get_object_or_404(Candidate, user=request.user, election=election, post=post)
+
+    if candidate.status != 'nominated':
+        return Response({"error": "You are not nominated for this post."}, status=400)
+
+    if candidate.application_attempts >= 2:
+        return Response({"error": "You have exceeded your manifesto submission attempts."}, status=400)
+
+    manifesto = request.data.get('manifesto')
+    if not manifesto:
+        return Response({"error": "Manifesto is required."}, status=400)
+
+    # Run AI analysis
+    ai_result = analyse_manifesto(manifesto)
+
+    # Increment attempts
+    candidate.manifesto         = manifesto
+    candidate.ai_theme          = ai_result['ai_theme']
+    candidate.ai_score          = ai_result['ai_score']
+    candidate.ai_confidence     = ai_result['ai_confidence']
+    candidate.application_attempts += 1
+    candidate.status            = 'pending'
+    candidate.save()
+
+    return Response({
+        "message": "Manifesto submitted. Awaiting admin decision.",
+        "ai_score": ai_result['ai_score'],
+        "ai_theme": ai_result['ai_theme'],
+    }, status=200)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def list_candidates(request, election_id, post_id):
-    election   = get_object_or_404(Election, id=election_id)
-    post       = get_object_or_404(Post, id=post_id, election=election)
-    candidates = Candidate.objects.filter(election=election, post=post, status='approved')
+    election = get_object_or_404(Election, id=election_id)
+    post     = get_object_or_404(Post, id=post_id, election=election)
+
+    if request.user.is_staff:
+        # Admin sees all candidates
+        candidates = Candidate.objects.filter(election=election, post=post)
+    else:
+        # Students only see approved candidates
+        candidates = Candidate.objects.filter(election=election, post=post, status='approved')
 
     data = [
         {
-            "id":            c.id,
-            "username":      c.user.username,
-            "manifesto":     c.manifesto,
-            "cgpa":          c.cgpa,
-            "department":    c.department,
-            "status":        c.status,
-            "post":          post.title,
-            # AI fields
-            "ai_theme":      c.ai_theme,
-            "ai_score":      c.ai_score,
-            "ai_confidence": c.ai_confidence,
-            "profile_picture": request.build_absolute_uri(c.profile_picture.url) if c.profile_picture else None,
+            "id":                   c.id,
+            "full_name":            c.full_name,
+            "manifesto":            c.manifesto,
+            "cgpa":                 c.cgpa,
+            "department":           c.department,
+            "date_of_birth":        str(c.date_of_birth) if c.date_of_birth else None,
+            "status":               c.status,
+            "application_attempts": c.application_attempts,
+            "post":                 post.title,
+            "ai_theme":             c.ai_theme,
+            "ai_score":             c.ai_score,
+            "ai_confidence":        c.ai_confidence,
+            "profile_picture":      request.build_absolute_uri(c.profile_picture.url) if c.profile_picture else None,
         }
         for c in candidates
     ]
@@ -255,7 +308,9 @@ def approve_candidate(request, candidate_id):
     if request.user.role != 'admin':
         return Response({"error": "Admin Only"}, status=403)
     candidate = get_object_or_404(Candidate, id=candidate_id)
-    candidate.status = "approved"
+    if candidate.status != 'pending':
+        return Response({"error": "Candidate must be in pending state to approve."}, status=400)
+    candidate.status = 'approved'
     candidate.save()
     return Response({"message": "Candidate Approved"})
 
@@ -266,10 +321,35 @@ def reject_candidate(request, candidate_id):
     if request.user.role != 'admin':
         return Response({"error": "Admin only"}, status=403)
     candidate = get_object_or_404(Candidate, id=candidate_id)
-    candidate.status = "rejected"
+    if candidate.status != 'pending':
+        return Response({"error": "Candidate must be in pending state to reject."}, status=400)
+    candidate.status = 'rejected'
     candidate.save()
-    return Response({"message": "Candidate Rejected"})
+    return Response({
+        "message": "Candidate Rejected",
+        "attempts_used": candidate.application_attempts,
+        "can_reapply": candidate.application_attempts < 2
+    })
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_my_candidacy(request, election_id, post_id):
+    election  = get_object_or_404(Election, id=election_id)
+    post      = get_object_or_404(Post, id=post_id, election=election)
+    candidate = Candidate.objects.filter(user=request.user, election=election, post=post).first()
+
+    if not candidate:
+        return Response({"candidacy": None})
+
+    return Response({
+        "candidacy": {
+            "status":               candidate.status,
+            "application_attempts": candidate.application_attempts,
+            "manifesto":            candidate.manifesto,
+            "ai_score":             candidate.ai_score,
+            "ai_theme":             candidate.ai_theme,
+        }
+    })
 
 #  VOTING 
 
