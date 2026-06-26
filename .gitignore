@@ -3,3 +3,4 @@
 -H
 staticfiles/
 venv/
+media/

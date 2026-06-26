@@ -24,17 +24,19 @@
 
   async function load() {
     try {
-      const [eRes, cRes, pRes, vRes] = await Promise.all([
+      const [eRes, cRes, pRes, vRes, myRes] = await Promise.all([
         apiGet('/elections/'),
         apiGet(`/elections/${elId}/posts/${postId}/candidates/`),
         apiGet(`/elections/${elId}/posts/`),
         apiGet(`/elections/${elId}/vote-status/`),
+        apiGet(`/elections/${elId}/posts/${postId}/my-candidacy/`),
       ]);
 
-      const elections  = eRes.ok ? await eRes.json() : [];
-      const candidates = cRes.ok ? await cRes.json() : [];
-      const posts      = pRes.ok ? await pRes.json() : [];
-      const voteData   = vRes.ok ? await vRes.json() : { posts: [] };
+      const elections   = eRes.ok  ? await eRes.json()  : [];
+      const candidates  = cRes.ok  ? await cRes.json()  : [];
+      const posts       = pRes.ok  ? await pRes.json()  : [];
+      const voteData    = vRes.ok  ? await vRes.json()  : { posts: [] };
+      const myData      = myRes.ok ? await myRes.json() : { candidacy: null };
 
       const election = elections.find(e => String(e.id) === String(elId));
       const post     = posts.find(p => String(p.id) === String(postId));
@@ -45,15 +47,21 @@
       }
 
       const postVoteStatus = voteData.posts?.find(p => String(p.post_id) === String(postId));
-      const hasVoted = postVoteStatus?.has_voted || false;
+      const hasVoted       = postVoteStatus?.has_voted || false;
+      const myCandidacy    = myData.candidacy;
 
-      render(election, post, candidates, hasVoted);
-    } catch (e) { showAlert('alert', 'Failed to load post details.'); }
+      render(election, post, candidates, hasVoted, myCandidacy);
+    } catch (e) {
+      showAlert('alert', 'Failed to load post details.');
+    }
   }
 
-  function render(election, post, candidates, hasVoted) {
+  function render(election, post, candidates, hasVoted, myCandidacy) {
     const isAdmin = user?.role === 'admin';
     const isOpen  = election.status === 'opened';
+
+    // Filter approved candidates for students
+    const visibleCandidates = isAdmin ? candidates : candidates.filter(c => c.status === 'approved');
 
     document.getElementById('page-out').innerHTML = `
 
@@ -67,30 +75,35 @@
           <h1 style="font-size:1.65rem;">${post.title}</h1>
           ${post.description ? `<p class="mt-1">${post.description}</p>` : ''}
         </div>
-
-        <!-- Apply button for students -->
-        ${!isAdmin && isOpen && !hasVoted ? `
-        <a href="/elections-page/${elId}/posts/${postId}/apply/"
-           class="btn btn-primary">Apply for this Post</a>` : ''}
+        ${!isAdmin && isOpen && !myCandidacy
+          ? `<a href="/elections-page/${elId}/posts/${postId}/apply/" class="btn btn-primary">Apply for this Post</a>`
+          : ''}
       </div>
+
+      <!-- Student candidacy status -->
+      ${!isAdmin && myCandidacy ? renderCandidacyStatus(myCandidacy) : ''}
 
       <!-- Already voted notice -->
       ${!isAdmin && hasVoted
         ? `<div class="alert alert-success show mb-3">✓ You have already cast your vote for <strong>${post.title}</strong>.</div>`
         : ''}
 
-      <!-- Candidates -->
-      <div class="flex-between mb-2">
-        <h2 style="font-size:.95rem;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;">Candidates</h2>
-        <span class="text-xs text-muted">${candidates.length} candidate${candidates.length !== 1 ? 's' : ''}</span>
+      <!-- Admin: all applicants -->
+      ${isAdmin ? renderAdminView(candidates) : ''}
+
+      <!-- Approved Candidates (visible to all) -->
+      <div class="flex-between mb-2 mt-3">
+        <h2 style="font-size:.95rem;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;">
+          Approved Candidates
+        </h2>
+        <span class="text-xs text-muted">${visibleCandidates.filter(c => c.status === 'approved').length} approved</span>
       </div>
 
-      ${candidates.length === 0
-        ? `<div class="empty-state"><span class="empty-icon">👤</span><p>No approved candidates for this post yet.</p></div>`
+      ${visibleCandidates.filter(c => c.status === 'approved').length === 0
+        ? `<div class="empty-state"><span class="empty-icon">👤</span><p>No approved candidates yet.</p></div>`
         : `<div class="grid-2">
-            ${candidates.map(c => `
+            ${visibleCandidates.filter(c => c.status === 'approved').map(c => `
               <div class="card">
-                <!-- Profile picture -->
                 <div style="display:flex;align-items:center;gap:1rem;margin-bottom:.85rem;">
                   <div style="width:56px;height:56px;border-radius:50%;overflow:hidden;
                               background:var(--bg-3);border:2px solid var(--b2);flex-shrink:0;">
@@ -100,42 +113,14 @@
                                     justify-content:center;font-size:1.5rem;opacity:.4;">👤</div>`}
                   </div>
                   <div>
-                    <div class="card-title">${c.username}</div>
+                    <div class="card-title">${c.full_name || c.username}</div>
                     <div class="text-sm text-muted">${c.department}</div>
                   </div>
-                  ${statusBadge(c.status)}
                 </div>
-
                 <div class="hr"></div>
-
-                <!-- Manifesto -->
-                <p class="text-sm" style="margin-bottom:.5rem;">${c.manifesto || ''}</p>
-
-                <!-- AI Insights — admin only -->
-                ${isAdmin ? `
-                <div style="margin-top:.85rem; background:var(--bg-2); border:1px solid var(--b1);
-                            border-radius:var(--r-md); padding:.85rem 1rem;">
-                  <div style="font-size:11px; font-weight:700; text-transform:uppercase;
-                              letter-spacing:.08em; color:var(--accent); margin-bottom:.6rem;">
-                    🤖 AI Manifesto Analysis
-                  </div>
-                  <div style="display:flex; flex-wrap:wrap; gap:.5rem;">
-                    <span class="badge" style="background:var(--accent-dim); color:var(--accent);
-                          border:1px solid rgba(79,142,247,.3);">
-                      Theme: ${c.ai_theme || '—'}
-                    </span>
-                    <span class="badge" style="
-                      background:${c.ai_score === 'Strong' ? 'var(--green-dim)' : c.ai_score === 'Moderate' ? 'var(--amber-dim)' : 'var(--red-dim)'};
-                      color:${c.ai_score === 'Strong' ? 'var(--green)' : c.ai_score === 'Moderate' ? 'var(--amber)' : 'var(--red)'};
-                      border:1px solid ${c.ai_score === 'Strong' ? 'var(--green)' : c.ai_score === 'Moderate' ? 'var(--amber)' : 'var(--red)'};">
-                      Score: ${c.ai_score || '—'}
-                    </span>
-                    <span class="badge" style="background:var(--bg-3); color:var(--t2); border:1px solid var(--b2);">
-                      Confidence: ${c.ai_confidence || 0}%
-                    </span>
-                  </div>
-                </div>` : ''}
-
+                ${c.manifesto
+                  ? `<p class="text-sm" style="margin-bottom:.5rem;">${c.manifesto}</p>`
+                  : `<p class="text-sm text-muted">No manifesto submitted yet.</p>`}
                 ${!isAdmin && isOpen && !hasVoted
                   ? `<button class="btn btn-primary btn-sm mt-2 vote-btn" data-id="${c.id}">Cast Vote</button>`
                   : ''}
@@ -144,7 +129,218 @@
       }
     `;
 
+    bindAdminActions();
+    bindManifestoSubmit();
     bindVote();
+  }
+
+  function renderCandidacyStatus(c) {
+    if (c.status === 'applied') {
+      return `<div class="alert alert-info show mb-3">
+        📋 Your application has been submitted. Wait to be nominated by the admin.
+      </div>`;
+    }
+    if (c.status === 'nominated') {
+      return `
+      <div class="card mb-3" style="border-color:var(--accent);">
+        <div style="font-family:var(--f-display);font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:.5rem;">
+          🎉 You have been nominated!
+        </div>
+        <p class="text-sm mb-3">You can now submit your manifesto. Make it detailed and use action words for a better AI score.</p>
+        <div id="manifesto-alert" class="alert"></div>
+        <div class="form-group">
+          <label class="form-label">Your Manifesto</label>
+          <div class="text-xs text-muted mb-1">Aim for at least 80 words with action words like "will", "ensure", "improve".</div>
+          <textarea class="form-control" id="m-manifesto" rows="7" style="min-height:160px;"
+                    placeholder="Tell students what you will do for them if elected…"></textarea>
+          <div class="text-xs text-muted mt-1" id="word-count">0 words</div>
+        </div>
+        <button class="btn btn-primary" id="btn-manifesto">Submit Manifesto</button>
+        ${c.application_attempts > 0
+          ? `<div class="text-xs text-muted mt-2">⚠ Attempts used: ${c.application_attempts}/2</div>`
+          : ''}
+      </div>`;
+    }
+    if (c.status === 'pending') {
+      return `<div class="alert alert-info show mb-3">
+        ⏳ Your manifesto has been submitted and is awaiting admin review.
+      </div>`;
+    }
+    if (c.status === 'approved') {
+      return `<div class="alert alert-success show mb-3">
+        ✅ You are an approved candidate for this post!
+      </div>`;
+    }
+    if (c.status === 'rejected') {
+      const attemptsLeft = 2 - c.application_attempts;
+      if (attemptsLeft > 0) {
+        return `<div class="alert alert-error show mb-3">
+          ❌ Your manifesto was rejected. You have ${attemptsLeft} attempt(s) left.
+          You have been re-nominated — please submit a better manifesto.
+        </div>
+        <div class="card mb-3" style="border-color:var(--red);">
+          <div id="manifesto-alert" class="alert"></div>
+          <div class="form-group">
+            <label class="form-label">Resubmit Your Manifesto</label>
+            <textarea class="form-control" id="m-manifesto" rows="7" style="min-height:160px;"
+                      placeholder="Write a stronger manifesto this time…"></textarea>
+            <div class="text-xs text-muted mt-1" id="word-count">0 words</div>
+          </div>
+          <button class="btn btn-primary" id="btn-manifesto">Resubmit Manifesto</button>
+        </div>`;
+      } else {
+        return `<div class="alert alert-error show mb-3">
+          ❌ You have been permanently rejected. You cannot apply for any election again.
+        </div>`;
+      }
+    }
+    return '';
+  }
+
+  function renderAdminView(candidates) {
+    if (candidates.length === 0) return '';
+    return `
+    <div class="card mb-3">
+      <div class="card-title mb-3">All Applicants</div>
+      ${candidates.map(c => `
+        <div style="background:var(--bg-2);border:1px solid var(--b1);border-radius:var(--r-md);
+                    padding:1rem;margin-bottom:.75rem;">
+          <div style="display:flex;align-items:center;gap:1rem;margin-bottom:.75rem;">
+            <div style="width:48px;height:48px;border-radius:50%;overflow:hidden;
+                        background:var(--bg-3);border:1px solid var(--b2);flex-shrink:0;">
+              ${c.profile_picture
+                ? `<img src="${c.profile_picture}" style="width:100%;height:100%;object-fit:cover;"/>`
+                : `<div style="width:100%;height:100%;display:flex;align-items:center;
+                              justify-content:center;font-size:1.2rem;opacity:.4;">👤</div>`}
+            </div>
+            <div style="flex:1;">
+              <div style="font-weight:600;color:var(--t1);">${c.full_name || '—'}</div>
+              <div class="text-sm text-muted">${c.department} · DOB: ${c.date_of_birth || '—'}</div>
+              <div class="text-xs text-muted">CGPA: ${c.cgpa} · Attempts: ${c.application_attempts}/2</div>
+            </div>
+            ${statusBadge(c.status)}
+          </div>
+
+          ${c.manifesto ? `
+          <div style="margin-bottom:.75rem;">
+            <div class="text-xs text-muted mb-1" style="text-transform:uppercase;letter-spacing:.05em;">Manifesto</div>
+            <p class="text-sm">${c.manifesto}</p>
+          </div>` : ''}
+
+          ${c.ai_score ? `
+          <div style="background:var(--bg-3);border:1px solid var(--b1);border-radius:var(--r-sm);
+                      padding:.75rem;margin-bottom:.75rem;">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;
+                        letter-spacing:.08em;color:var(--accent);margin-bottom:.5rem;">
+              🤖 AI Manifesto Analysis
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:.5rem;">
+              <span class="badge" style="background:var(--accent-dim);color:var(--accent);
+                    border:1px solid rgba(79,142,247,.3);">Theme: ${c.ai_theme || '—'}</span>
+              <span class="badge" style="
+                background:${c.ai_score === 'Strong' ? 'var(--green-dim)' : c.ai_score === 'Moderate' ? 'var(--amber-dim)' : 'var(--red-dim)'};
+                color:${c.ai_score === 'Strong' ? 'var(--green)' : c.ai_score === 'Moderate' ? 'var(--amber)' : 'var(--red)'};
+                border:1px solid ${c.ai_score === 'Strong' ? 'var(--green)' : c.ai_score === 'Moderate' ? 'var(--amber)' : 'var(--red)'};">
+                Score: ${c.ai_score}</span>
+              <span class="badge" style="background:var(--bg-3);color:var(--t2);border:1px solid var(--b2);">
+                Confidence: ${c.ai_confidence || 0}%</span>
+            </div>
+          </div>` : ''}
+
+          <!-- Admin action buttons -->
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+            ${c.status === 'applied'
+              ? `<button class="btn btn-outline btn-sm nominate-btn" data-id="${c.id}">Nominate</button>`
+              : ''}
+            ${c.status === 'pending'
+              ? `<button class="btn btn-success btn-sm approve-btn" data-id="${c.id}">Approve</button>
+                 <button class="btn btn-danger btn-sm reject-btn" data-id="${c.id}">Reject</button>`
+              : ''}
+          </div>
+        </div>`).join('')}
+    </div>`;
+  }
+
+  function bindAdminActions() {
+    // Nominate
+    document.querySelectorAll('.nominate-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        btn.disabled = true;
+        try {
+          const res  = await apiPost(`/candidates/${id}/nominate/`, {});
+          const data = await res.json();
+          showAlert('alert', res.ok ? 'Candidate nominated.' : (data.error || 'Failed.'), res.ok ? 'success' : 'error');
+          if (res.ok) setTimeout(load, 700);
+        } catch { showAlert('alert', 'Network error.'); }
+        finally { btn.disabled = false; }
+      });
+    });
+
+    // Approve
+    document.querySelectorAll('.approve-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        btn.disabled = true;
+        try {
+          const res  = await apiPost(`/candidates/${id}/approve/`, {});
+          const data = await res.json();
+          showAlert('alert', res.ok ? 'Candidate approved!' : (data.error || 'Failed.'), res.ok ? 'success' : 'error');
+          if (res.ok) setTimeout(load, 700);
+        } catch { showAlert('alert', 'Network error.'); }
+        finally { btn.disabled = false; }
+      });
+    });
+
+    // Reject
+    document.querySelectorAll('.reject-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        btn.disabled = true;
+        try {
+          const res  = await apiPost(`/candidates/${id}/reject/`, {});
+          const data = await res.json();
+          showAlert('alert', res.ok ? 'Candidate rejected.' : (data.error || 'Failed.'), res.ok ? 'success' : 'error');
+          if (res.ok) setTimeout(load, 700);
+        } catch { showAlert('alert', 'Network error.'); }
+        finally { btn.disabled = false; }
+      });
+    });
+  }
+
+  function bindManifestoSubmit() {
+    // Word count
+    const textarea = document.getElementById('m-manifesto');
+    if (textarea) {
+      textarea.addEventListener('input', function() {
+        const words = this.value.trim().split(/\s+/).filter(Boolean).length;
+        const el    = document.getElementById('word-count');
+        if (el) {
+          el.textContent = `${words} word${words !== 1 ? 's' : ''}`;
+          el.style.color = words >= 80 ? 'var(--green)' : words >= 40 ? 'var(--amber)' : 'var(--red)';
+        }
+      });
+    }
+
+    const btn = document.getElementById('btn-manifesto');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      const manifesto = document.getElementById('m-manifesto').value.trim();
+      if (!manifesto) { showAlert('manifesto-alert', 'Please write your manifesto.'); return; }
+
+      btn.disabled = true; btn.textContent = 'Submitting…';
+      try {
+        const res  = await apiPost(`/elections/${elId}/posts/${postId}/submit-manifesto/`, { manifesto });
+        const data = await res.json();
+        if (res.ok) {
+          showAlert('manifesto-alert', 'Manifesto submitted! Awaiting admin review.', 'success');
+          setTimeout(load, 1500);
+        } else {
+          showAlert('manifesto-alert', data.error || 'Submission failed.');
+        }
+      } catch { showAlert('manifesto-alert', 'Network error.'); }
+      finally { btn.disabled = false; btn.textContent = 'Submit Manifesto'; }
+    });
   }
 
   function bindVote() {

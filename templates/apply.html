@@ -19,13 +19,18 @@
 
     <div id="apply-alert" class="alert"></div>
 
+    <!-- Info notice -->
+    <div class="alert alert-info show mb-3">
+      Fill in your details below. If shortlisted, you will be notified and asked to submit your manifesto.
+    </div>
+
     <!-- Profile Picture -->
     <div class="form-group">
       <label class="form-label">Profile Picture</label>
       <div id="pic-preview" style="width:100px;height:100px;border-radius:50%;
            background:var(--bg-3);border:2px dashed var(--b2);
            display:flex;align-items:center;justify-content:center;
-           margin-bottom:.75rem;overflow:hidden;cursor:pointer;">
+           margin-bottom:.75rem;overflow:hidden;">
         <span style="font-size:2rem;opacity:.4;">👤</span>
       </div>
       <input type="file" id="a-pic" accept="image/*" style="margin-bottom:.5rem;"/>
@@ -54,21 +59,8 @@
 
     <!-- CGPA -->
     <div class="form-group">
-      <label class="form-label">CGPA <span style="color:var(--t3);font-size:11px;">(Min 3.0 for approval)</span></label>
+      <label class="form-label">CGPA <span style="color:var(--t3);font-size:11px;">(Min 3.0 required)</span></label>
       <input class="form-control" type="number" id="a-cgpa" min="0" max="5" step="0.01" placeholder="e.g. 3.75"/>
-    </div>
-
-    <!-- Manifesto -->
-    <div class="form-group">
-      <label class="form-label">Manifesto</label>
-      <div class="text-xs text-muted mb-1">
-        Write a detailed manifesto. Use action words like "will", "ensure", "improve", "create" for a stronger score.
-        Aim for at least 80 words.
-      </div>
-      <textarea class="form-control" id="a-manifesto" rows="7"
-                placeholder="Tell students what you will do for them if elected…"
-                style="min-height:160px;"></textarea>
-      <div class="text-xs text-muted mt-1" id="word-count">0 words</div>
     </div>
 
     <button class="btn btn-primary btn-block btn-lg mt-2" id="btn-apply">Submit Application</button>
@@ -88,7 +80,7 @@
 
   document.getElementById('back-link').href = `/elections-page/${elId}/posts/${postId}/`;
 
-  // Load post title for subtitle
+  // Load post title
   async function loadPostInfo() {
     try {
       const res  = await apiGet(`/elections/${elId}/posts/`);
@@ -113,24 +105,15 @@
     reader.readAsDataURL(file);
   });
 
-  // Word count
-  document.getElementById('a-manifesto').addEventListener('input', function() {
-    const words = this.value.trim().split(/\s+/).filter(Boolean).length;
-    const el    = document.getElementById('word-count');
-    el.textContent = `${words} word${words !== 1 ? 's' : ''}`;
-    el.style.color = words >= 80 ? 'var(--green)' : words >= 40 ? 'var(--amber)' : 'var(--red)';
-  });
-
   // Submit
   document.getElementById('btn-apply').addEventListener('click', async () => {
-    const fullname  = document.getElementById('a-fullname').value.trim();
-    const dob       = document.getElementById('a-dob').value;
-    const dept      = document.getElementById('a-dept').value.trim();
-    const cgpa      = document.getElementById('a-cgpa').value;
-    const manifesto = document.getElementById('a-manifesto').value.trim();
-    const picFile   = document.getElementById('a-pic').files[0];
+    const fullname = document.getElementById('a-fullname').value.trim();
+    const dob      = document.getElementById('a-dob').value;
+    const dept     = document.getElementById('a-dept').value.trim();
+    const cgpa     = document.getElementById('a-cgpa').value;
+    const picFile  = document.getElementById('a-pic').files[0];
 
-    if (!fullname || !dob || !dept || !cgpa || !manifesto) {
+    if (!fullname || !dob || !dept || !cgpa) {
       showAlert('apply-alert', 'Please fill in all fields.'); return;
     }
 
@@ -142,29 +125,21 @@
       formData.append('full_name', fullname);
       formData.append('cgpa', parseFloat(cgpa));
       formData.append('department', dept);
-      formData.append('manifesto', manifesto);
       formData.append('date_of_birth', dob);
       if (picFile) formData.append('profile_picture', picFile);
 
       const token = getAccessToken();
       const res = await fetch(`/elections/${elId}/posts/${postId}/apply/`, {
         method: 'POST',
-        headers: {
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
+        headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
         body: formData,
       });
 
       const data = await res.json();
 
       if (res.ok) {
-        showAlert('apply-alert',
-          `Application ${data.status}! ${data.status === 'rejected' ? '(CGPA below 3.0 or weak manifesto)' : 'You have been approved!'}`,
-          data.status === 'approved' ? 'success' : 'error'
-        );
-        if (data.status === 'approved') {
-          setTimeout(() => window.location.href = `/elections-page/${elId}/posts/${postId}/`, 2000);
-        }
+        showAlert('apply-alert', 'Application submitted! Wait to be nominated by the admin.', 'success');
+        setTimeout(() => window.location.href = `/elections-page/${elId}/posts/${postId}/`, 2500);
       } else {
         showAlert('apply-alert', data.error || 'Application failed.');
       }
