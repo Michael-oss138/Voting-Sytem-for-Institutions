@@ -8,7 +8,7 @@ from .views import (
     login_page, register_page, dashboard_page,
     elections_page, election_detail_page, results_page,
     post_detail_page, list_posts,create_election_page,
-    CustomTokenObtainPairView,apply_page,nominate_candidate, submit_manifesto, get_my_candidacy
+    CustomTokenObtainPairView,apply_page,nominate_candidate, submit_manifesto, get_my_candidacy, pending_nominations_count
 )
 
 urlpatterns = [
@@ -64,5 +64,7 @@ urlpatterns = [
     path('elections/<int:election_id>/posts/<int:post_id>/submit-manifesto/', submit_manifesto),
 
     # Student checks own candidacy status
-    path('elections/<int:election_id>/posts/<int:post_id>/my-candidacy/', get_my_candidacy)
+    path('elections/<int:election_id>/posts/<int:post_id>/my-candidacy/', get_my_candidacy),
+
+    path('nominations/pending/', pending_nominations_count)
 ]

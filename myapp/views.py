@@ -190,15 +190,26 @@ def apply_candidate(request, election_id, post_id):
     election = get_object_or_404(Election, id=election_id)
     post     = get_object_or_404(Post, id=post_id, election=election)
 
-    # Check if already applied anywhere (and not permanently blocked)
+    # Check if permanently disqualified
     existing = Candidate.objects.filter(user=request.user).first()
     if existing:
         if existing.application_attempts >= 2:
-            return Response({"error": "You have been permanently blocked from applying."}, status=400)
-        if existing.status != 'rejected':
-            return Response({"error": "You have already applied in an election."}, status=400)
+            return Response({"error": "You have been permanently disqualified from all elections."}, status=400)
+        if existing.status in ['pending', 'nominated', 'approved']:
+            return Response({"error": "You already have an active application in an election."}, status=400)
+        # If rejected and attempts < 2, delete old record and let them reapply
+        if existing.status == 'rejected':
+            existing.delete()
 
-    cgpa            = float(request.data.get('cgpa', 0))
+    cgpa = float(request.data.get('cgpa', 0))
+
+    # CGPA check — don't save if fails
+    if cgpa < 3.0:
+        return Response({
+            "error": "Your CGPA does not meet the minimum requirement of 3.0.",
+            "status": "rejected"
+        }, status=400)
+
     department      = request.data.get('department')
     date_of_birth   = request.data.get('date_of_birth')
     profile_picture = request.FILES.get('profile_picture')
@@ -213,11 +224,11 @@ def apply_candidate(request, election_id, post_id):
         department=department,
         date_of_birth=date_of_birth,
         profile_picture=profile_picture,
-        status='applied',
+        status='pending',
     )
 
     return Response({
-        "message": "Application submitted. Wait for nomination.",
+        "message": "Application submitted. Awaiting admin review.",
         "status":  candidate.status
     }, status=201)
 
@@ -227,11 +238,17 @@ def nominate_candidate(request, candidate_id):
     if not request.user.is_staff:
         return Response({"error": "Admins only"}, status=403)
     candidate = get_object_or_404(Candidate, id=candidate_id)
-    if candidate.status != 'applied':
-        return Response({"error": "Candidate is not in applied state"}, status=400)
+
+    # Only the admin who created the election can nominate
+    if candidate.election.created_by != request.user:
+        return Response({"error": "You can only nominate candidates in your own election."}, status=403)
+
+    if candidate.status != 'pending':
+        return Response({"error": "Candidate must be in pending state to nominate."}, status=400)
+
     candidate.status = 'nominated'
     candidate.save()
-    return Response({"message": "Candidate nominated successfully"})   
+    return Response({"message": "Candidate nominated successfully"})
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -244,29 +261,82 @@ def submit_manifesto(request, election_id, post_id):
         return Response({"error": "You are not nominated for this post."}, status=400)
 
     if candidate.application_attempts >= 2:
-        return Response({"error": "You have exceeded your manifesto submission attempts."}, status=400)
+        candidate.status = 'disqualified'
+        candidate.save()
+        return Response({"error": "You have been permanently disqualified."}, status=400)
 
     manifesto = request.data.get('manifesto')
     if not manifesto:
         return Response({"error": "Manifesto is required."}, status=400)
 
-    # Run AI analysis
     ai_result = analyse_manifesto(manifesto)
 
     # Increment attempts
-    candidate.manifesto         = manifesto
-    candidate.ai_theme          = ai_result['ai_theme']
-    candidate.ai_score          = ai_result['ai_score']
-    candidate.ai_confidence     = ai_result['ai_confidence']
     candidate.application_attempts += 1
-    candidate.status            = 'pending'
+
+    if ai_result['ai_score'] == 'Weak':
+        candidate.save()  # save attempt count only
+        attempts_left = 2 - candidate.application_attempts
+        if attempts_left <= 0:
+            candidate.status = 'disqualified'
+            candidate.save()
+            return Response({
+                "error": "Your manifesto is too weak. You have been permanently disqualified.",
+                "ai_score": ai_result['ai_score'],
+                "ai_theme": ai_result['ai_theme'],
+            }, status=400)
+        return Response({
+            "error": f"Your manifesto is too weak. You have {attempts_left} attempt(s) left.",
+            "ai_score": ai_result['ai_score'],
+            "ai_theme": ai_result['ai_theme'],
+            "attempts_left": attempts_left,
+        }, status=400)
+
+    # Good manifesto — save everything and set to pending for admin review
+    candidate.manifesto     = manifesto
+    candidate.ai_theme      = ai_result['ai_theme']
+    candidate.ai_score      = ai_result['ai_score']
+    candidate.ai_confidence = ai_result['ai_confidence']
+    candidate.status        = 'pending'
     candidate.save()
 
     return Response({
-        "message": "Manifesto submitted. Awaiting admin decision.",
+        "message": "Manifesto submitted successfully. Awaiting admin approval.",
         "ai_score": ai_result['ai_score'],
         "ai_theme": ai_result['ai_theme'],
     }, status=200)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def pending_nominations_count(request):
+    if not request.user.is_staff:
+        return Response({"error": "Admins only"}, status=403)
+
+    # Count pending candidates in elections created by this admin
+    count = Candidate.objects.filter(
+        election__created_by=request.user,
+        status='pending'
+    ).count()
+
+    # Get the list with election and post info for quick navigation
+    pending = Candidate.objects.filter(
+        election__created_by=request.user,
+        status='pending'
+    ).select_related('election', 'post', 'user')
+
+    data = [
+        {
+            "candidate_id": c.id,
+            "full_name":    c.full_name,
+            "election_id":  c.election.id,
+            "election":     c.election.title,
+            "post_id":      c.post.id,
+            "post":         c.post.title,
+        }
+        for c in pending
+    ]
+
+    return Response({"count": count, "pending": data})
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])

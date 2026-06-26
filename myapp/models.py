@@ -64,11 +64,11 @@ class Post(models.Model):
 
 class Candidate(models.Model):
     STATUS_CHOICES = (
-        ('applied',    'Applied'),     
         ('nominated',  'Nominated'),   
         ('pending',    'Pending'),     
         ('approved',   'Approved'),     
-        ('rejected',   'Rejected'),      
+        ('rejected',   'Rejected'), 
+        ('disqualified', 'Disqualified')     
     )
 
     user              = models.ForeignKey(User, on_delete=models.CASCADE)
