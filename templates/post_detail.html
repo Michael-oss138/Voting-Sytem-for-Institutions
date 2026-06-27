@@ -4,12 +4,12 @@
 
 {% block extra_css %}
 <style>
-  /* Modal */
   .modal-overlay {
     display: none;
     position: fixed; inset: 0; z-index: 1000;
-    background: rgba(0,0,0,0.7);
+    background: rgba(0,0,0,0.75);
     backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     align-items: center; justify-content: center;
     padding: 1rem;
   }
@@ -31,6 +31,30 @@
     font-size: 1rem; display: flex; align-items: center; justify-content: center;
   }
   .modal-close:hover { color: var(--red); border-color: var(--red); }
+
+  /* Image zoom modal */
+  .img-modal {
+    display: none;
+    position: fixed; inset: 0; z-index: 2000;
+    background: rgba(0,0,0,0.92);
+    align-items: center; justify-content: center;
+    cursor: zoom-out;
+  }
+  .img-modal.open { display: flex; }
+  .img-modal img {
+    max-width: 90vw; max-height: 90vh;
+    border-radius: var(--r-lg);
+    object-fit: contain;
+  }
+
+  .candidate-card {
+    cursor: pointer;
+    transition: border-color .15s, transform .1s;
+  }
+  .candidate-card:hover {
+    border-color: var(--accent) !important;
+    transform: translateY(-2px);
+  }
   .applicant-card {
     cursor: pointer;
     transition: border-color .15s, transform .1s;
@@ -50,12 +74,25 @@
 <div id="alert" class="alert"></div>
 <div id="page-out"><div class="loading">Loading…</div></div>
 
-<!-- Applicant detail modal -->
-<div class="modal-overlay" id="modal">
+<!-- Candidate detail modal (voters) -->
+<div class="modal-overlay" id="candidate-modal">
   <div class="modal-box">
-    <button class="modal-close" id="modal-close">✕</button>
-    <div id="modal-content"></div>
+    <button class="modal-close" id="candidate-modal-close">✕</button>
+    <div id="candidate-modal-content"></div>
   </div>
+</div>
+
+<!-- Applicant detail modal (admin) -->
+<div class="modal-overlay" id="applicant-modal">
+  <div class="modal-box">
+    <button class="modal-close" id="applicant-modal-close">✕</button>
+    <div id="applicant-modal-content"></div>
+  </div>
+</div>
+
+<!-- Image zoom modal -->
+<div class="img-modal" id="img-modal">
+  <img id="img-modal-img" src="" alt="Profile picture"/>
 </div>
 {% endblock %}
 
@@ -70,31 +107,125 @@
 
   document.getElementById('back-link').href = `/elections-page/${elId}/`;
 
-  // Modal controls
-  const modal      = document.getElementById('modal');
-  const modalClose = document.getElementById('modal-close');
-  modalClose.addEventListener('click', () => modal.classList.remove('open'));
-  modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('open'); });
-
-  // Store candidates globally for modal access
   let allCandidates = [];
+  let currentElection = null;
+  let currentHasVoted = false;
 
-  function openModal(candidateId) {
+  // ── MODAL CONTROLS ───────────────────────────────────────────────
+
+  const candidateModal      = document.getElementById('candidate-modal');
+  const applicantModal      = document.getElementById('applicant-modal');
+  const imgModal            = document.getElementById('img-modal');
+  const imgModalImg         = document.getElementById('img-modal-img');
+
+  document.getElementById('candidate-modal-close').addEventListener('click', () => candidateModal.classList.remove('open'));
+  document.getElementById('applicant-modal-close').addEventListener('click', () => applicantModal.classList.remove('open'));
+  candidateModal.addEventListener('click', e => { if (e.target === candidateModal) candidateModal.classList.remove('open'); });
+  applicantModal.addEventListener('click', e => { if (e.target === applicantModal) applicantModal.classList.remove('open'); });
+  imgModal.addEventListener('click', () => imgModal.classList.remove('open'));
+
+  function openImageZoom(src) {
+    imgModalImg.src = src;
+    imgModal.classList.add('open');
+  }
+
+  // ── OPEN CANDIDATE MODAL (voters) ────────────────────────────────
+
+  function openCandidateModal(candidateId) {
+    const c        = allCandidates.find(c => String(c.id) === String(candidateId));
+    const isOpen   = currentElection?.status === 'opened';
+    const isAdmin  = user?.role === 'admin';
+    if (!c) return;
+
+    document.getElementById('candidate-modal-content').innerHTML = `
+      <!-- Picture -->
+      <div style="text-align:center;margin-bottom:1.25rem;">
+        <div style="width:100px;height:100px;border-radius:50%;overflow:hidden;
+                    background:var(--bg-3);border:3px solid var(--b2);
+                    margin:0 auto .75rem;
+                    ${c.profile_picture ? 'cursor:zoom-in;' : ''}">
+          ${c.profile_picture
+            ? `<img src="${c.profile_picture}" onclick="openImageZoom('${c.profile_picture}')"
+                   style="width:100%;height:100%;object-fit:cover;" alt="${c.full_name}"/>`
+            : `<div style="width:100%;height:100%;display:flex;align-items:center;
+                          justify-content:center;font-size:2.5rem;opacity:.4;">👤</div>`}
+        </div>
+        ${c.profile_picture
+          ? `<div class="text-xs text-muted" style="margin-bottom:.5rem;">Tap photo to zoom</div>`
+          : ''}
+        <div style="font-family:var(--f-display);font-size:1.2rem;font-weight:700;color:var(--t1);">
+          ${c.full_name || '—'}
+        </div>
+        <div class="text-sm text-muted">${c.department}</div>
+      </div>
+
+      <div class="hr"></div>
+
+      <!-- Manifesto -->
+      ${c.manifesto ? `
+      <div style="margin-bottom:1rem;">
+        <div class="text-xs text-muted mb-2" style="text-transform:uppercase;letter-spacing:.05em;">Manifesto</div>
+        <p class="text-sm" style="line-height:1.8;">${c.manifesto}</p>
+      </div>` : `<p class="text-sm text-muted mb-3">No manifesto available.</p>`}
+
+      <!-- Vote button -->
+      ${!isAdmin && isOpen && !currentHasVoted
+        ? `<button class="btn btn-primary btn-block modal-vote-btn mt-2" data-id="${c.id}">🗳 Cast Vote</button>`
+        : ''}
+      ${!isAdmin && currentHasVoted
+        ? `<div class="alert alert-success show mt-2">✓ You have already voted for this post.</div>`
+        : ''}
+    `;
+
+    candidateModal.classList.add('open');
+    bindModalVote();
+  }
+
+  function bindModalVote() {
+    document.querySelectorAll('.modal-vote-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Confirm your vote? This cannot be undone.')) return;
+        const cId = btn.dataset.id;
+        btn.disabled = true; btn.textContent = 'Voting…';
+        try {
+          const res  = await apiPost(`/elections/${elId}/posts/${postId}/vote/${cId}/`, {});
+          const data = await res.json();
+          if (res.ok) {
+            candidateModal.classList.remove('open');
+            showAlert('alert', '🗳 Your vote has been cast successfully!', 'success');
+            setTimeout(load, 900);
+          } else {
+            showAlert('alert', data.error || 'Vote failed.');
+            btn.disabled = false; btn.textContent = '🗳 Cast Vote';
+          }
+        } catch {
+          showAlert('alert', 'Network error.');
+          btn.disabled = false; btn.textContent = '🗳 Cast Vote';
+        }
+      });
+    });
+  }
+
+  // ── OPEN APPLICANT MODAL (admin) ─────────────────────────────────
+
+  function openApplicantModal(candidateId) {
     const c = allCandidates.find(c => String(c.id) === String(candidateId));
     if (!c) return;
 
-    document.getElementById('modal-content').innerHTML = `
+    document.getElementById('applicant-modal-content').innerHTML = `
       <!-- Profile header -->
       <div style="display:flex;align-items:center;gap:1.25rem;margin-bottom:1.25rem;">
         <div style="width:80px;height:80px;border-radius:50%;overflow:hidden;
-                    background:var(--bg-3);border:2px solid var(--b2);flex-shrink:0;">
+                    background:var(--bg-3);border:2px solid var(--b2);flex-shrink:0;
+                    ${c.profile_picture ? 'cursor:zoom-in;' : ''}">
           ${c.profile_picture
-            ? `<img src="${c.profile_picture}" style="width:100%;height:100%;object-fit:cover;"/>`
+            ? `<img src="${c.profile_picture}" onclick="openImageZoom('${c.profile_picture}')"
+                   style="width:100%;height:100%;object-fit:cover;" alt="${c.full_name}"/>`
             : `<div style="width:100%;height:100%;display:flex;align-items:center;
                           justify-content:center;font-size:2.5rem;opacity:.4;">👤</div>`}
         </div>
         <div>
-          <div style="font-family:var(--f-display);font-size:1.2rem;font-weight:700;color:var(--t1);">
+          <div style="font-family:var(--f-display);font-size:1.1rem;font-weight:700;color:var(--t1);">
             ${c.full_name || '—'}
           </div>
           <div class="text-sm text-muted">${c.department}</div>
@@ -104,7 +235,7 @@
 
       <div class="hr"></div>
 
-      <!-- Details -->
+      <!-- Details grid -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1rem;">
         <div>
           <div class="text-xs text-muted mb-1" style="text-transform:uppercase;letter-spacing:.05em;">CGPA</div>
@@ -115,7 +246,7 @@
           <div style="font-weight:500;">${c.date_of_birth || '—'}</div>
         </div>
         <div>
-          <div class="text-xs text-muted mb-1" style="text-transform:uppercase;letter-spacing:.05em;">Manifesto Attempts</div>
+          <div class="text-xs text-muted mb-1" style="text-transform:uppercase;letter-spacing:.05em;">Attempts</div>
           <div style="font-weight:500;">${c.application_attempts}/2</div>
         </div>
         <div>
@@ -133,7 +264,8 @@
 
       ${c.ai_score ? `
       <div class="hr"></div>
-      <div style="background:var(--bg-2);border:1px solid var(--b1);border-radius:var(--r-md);padding:.85rem;margin-bottom:1rem;">
+      <div style="background:var(--bg-2);border:1px solid var(--b1);border-radius:var(--r-md);
+                  padding:.85rem;margin-bottom:1rem;">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;
                     letter-spacing:.08em;color:var(--accent);margin-bottom:.6rem;">
           🤖 AI Manifesto Analysis
@@ -151,8 +283,8 @@
         </div>
       </div>` : ''}
 
-      <!-- Action buttons inside modal -->
-      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem;">
+      <!-- Action buttons -->
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem;" id="modal-action-btns">
         ${c.status === 'pending' && !c.manifesto
           ? `<button class="btn btn-outline modal-nominate-btn" data-id="${c.id}">Nominate</button>
              <button class="btn btn-danger modal-reject-btn" data-id="${c.id}">Reject</button>`
@@ -164,11 +296,11 @@
       </div>
     `;
 
-    modal.classList.add('open');
-    bindModalActions();
+    applicantModal.classList.add('open');
+    bindApplicantModalActions();
   }
 
-  function bindModalActions() {
+  function bindApplicantModalActions() {
     document.querySelectorAll('.modal-nominate-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         const id = btn.dataset.id;
@@ -176,7 +308,7 @@
         try {
           const res  = await apiPost(`/candidates/${id}/nominate/`, {});
           const data = await res.json();
-          modal.classList.remove('open');
+          applicantModal.classList.remove('open');
           showAlert('alert', res.ok ? 'Candidate nominated!' : (data.error || 'Failed.'), res.ok ? 'success' : 'error');
           if (res.ok) setTimeout(load, 700);
         } catch { showAlert('alert', 'Network error.'); }
@@ -191,7 +323,7 @@
         try {
           const res  = await apiPost(`/candidates/${id}/approve/`, {});
           const data = await res.json();
-          modal.classList.remove('open');
+          applicantModal.classList.remove('open');
           showAlert('alert', res.ok ? 'Candidate approved!' : (data.error || 'Failed.'), res.ok ? 'success' : 'error');
           if (res.ok) setTimeout(load, 700);
         } catch { showAlert('alert', 'Network error.'); }
@@ -207,7 +339,7 @@
         try {
           const res  = await apiPost(`/candidates/${id}/reject/`, {});
           const data = await res.json();
-          modal.classList.remove('open');
+          applicantModal.classList.remove('open');
           showAlert('alert', res.ok ? 'Candidate rejected.' : (data.error || 'Failed.'), res.ok ? 'success' : 'error');
           if (res.ok) setTimeout(load, 700);
         } catch { showAlert('alert', 'Network error.'); }
@@ -215,6 +347,8 @@
       });
     });
   }
+
+  // ── LOAD DATA ────────────────────────────────────────────────────
 
   async function load() {
     try {
@@ -240,17 +374,20 @@
           `<div class="empty-state"><p>Post not found.</p></div>`; return;
       }
 
-      allCandidates = candidates;
+      allCandidates   = candidates;
+      currentElection = election;
 
       const postVoteStatus = voteData.posts?.find(p => String(p.post_id) === String(postId));
-      const hasVoted       = postVoteStatus?.has_voted || false;
+      currentHasVoted      = postVoteStatus?.has_voted || false;
       const myCandidacy    = myData.candidacy;
 
-      render(election, post, candidates, hasVoted, myCandidacy);
+      render(election, post, candidates, currentHasVoted, myCandidacy);
     } catch (e) {
       showAlert('alert', 'Failed to load post details.');
     }
   }
+
+  // ── RENDER ───────────────────────────────────────────────────────
 
   function render(election, post, candidates, hasVoted, myCandidacy) {
     const isAdmin  = user?.role === 'admin';
@@ -281,47 +418,56 @@
         ? `<div class="alert alert-success show mb-3">✓ You have already cast your vote for <strong>${post.title}</strong>.</div>`
         : ''}
 
+      <!-- Admin applicants panel -->
       ${isOwner ? renderAdminPanel(candidates) : ''}
 
-      <div class="flex-between mb-2 mt-3">
-        <h2 style="font-size:.95rem;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;">Approved Candidates</h2>
-        <span class="text-xs text-muted">${approved.length} approved</span>
+      <!-- Approved candidates -->
+      <div class="flex-between mb-2 ${isOwner ? 'mt-4' : 'mt-2'}">
+        <h2 style="font-size:.95rem;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;">
+          ${isAdmin ? 'Approved Candidates' : 'Candidates'}
+        </h2>
+        <span class="text-xs text-muted">${approved.length} candidate${approved.length !== 1 ? 's' : ''}</span>
       </div>
 
       ${approved.length === 0
         ? `<div class="empty-state"><span class="empty-icon">👤</span><p>No approved candidates yet.</p></div>`
         : `<div class="grid-2">
             ${approved.map(c => `
-              <div class="card">
-                <div style="display:flex;align-items:center;gap:1rem;margin-bottom:.85rem;">
-                  <div style="width:56px;height:56px;border-radius:50%;overflow:hidden;
+              <div class="card candidate-card" data-id="${c.id}">
+                <div style="display:flex;align-items:center;gap:1rem;">
+                  <div style="width:52px;height:52px;border-radius:50%;overflow:hidden;
                               background:var(--bg-3);border:2px solid var(--b2);flex-shrink:0;">
                     ${c.profile_picture
                       ? `<img src="${c.profile_picture}" style="width:100%;height:100%;object-fit:cover;"/>`
                       : `<div style="width:100%;height:100%;display:flex;align-items:center;
-                                    justify-content:center;font-size:1.5rem;opacity:.4;">👤</div>`}
+                                    justify-content:center;font-size:1.4rem;opacity:.4;">👤</div>`}
                   </div>
-                  <div>
+                  <div style="flex:1;min-width:0;">
                     <div class="card-title">${c.full_name || '—'}</div>
                     <div class="text-sm text-muted">${c.department}</div>
                   </div>
                 </div>
                 <div class="hr"></div>
-                <p class="text-sm" style="margin-bottom:.5rem;">${c.manifesto || ''}</p>
-                ${!isAdmin && isOpen && !hasVoted
-                  ? `<button class="btn btn-primary btn-sm mt-2 vote-btn" data-id="${c.id}">Cast Vote</button>`
-                  : ''}
+                <p class="text-sm text-muted" style="display:-webkit-box;-webkit-line-clamp:2;
+                   -webkit-box-orient:vertical;overflow:hidden;margin-bottom:.5rem;">
+                  ${c.manifesto || 'No manifesto yet.'}
+                </p>
+                <div class="text-xs text-accent">Click to read more →</div>
               </div>`).join('')}
           </div>`
       }
     `;
 
     bindManifestoSubmit();
-    bindVote();
 
-    // Bind click on applicant cards to open modal
+    // Bind candidate cards for voters
+    document.querySelectorAll('.candidate-card').forEach(card => {
+      card.addEventListener('click', () => openCandidateModal(card.dataset.id));
+    });
+
+    // Bind applicant cards for admin
     document.querySelectorAll('.applicant-card').forEach(card => {
-      card.addEventListener('click', () => openModal(card.dataset.id));
+      card.addEventListener('click', () => openApplicantModal(card.dataset.id));
     });
   }
 
@@ -337,7 +483,8 @@
         <div style="font-family:var(--f-display);font-size:1rem;font-weight:700;
                     color:var(--accent);margin-bottom:.5rem;">🎉 You have been nominated!</div>
         <p class="text-sm mb-3">
-          Submit your manifesto. Use action words like "will", "ensure", "improve" and aim for at least 80 words.
+          Submit your manifesto below. Aim for at least 80 words and use action words
+          like "will", "ensure", "improve", "create".
           ${c.application_attempts > 0
             ? `<strong style="color:var(--amber);">⚠ This is your last attempt.</strong>`
             : ''}
@@ -375,30 +522,25 @@
         <p class="text-sm text-muted">No applications yet.</p>
       </div>`;
 
-    // Group by status
     const needsAction = candidates.filter(c => c.status === 'pending');
     const others      = candidates.filter(c => c.status !== 'pending');
 
     return `
     <div class="card mb-3">
       <div class="flex-between mb-3">
-        <div class="card-title">All Applicants</div>
+        <div class="card-title">Applicants</div>
         ${needsAction.length > 0
           ? `<span class="badge badge-opened">${needsAction.length} need action</span>`
           : ''}
       </div>
       <p class="text-xs text-muted mb-3">Click on an applicant to view full details and take action.</p>
 
-      <!-- Pending applicants first -->
       ${needsAction.length > 0 ? `
-      <div class="text-xs text-muted mb-2" style="text-transform:uppercase;letter-spacing:.06em;">
-        Awaiting Review
-      </div>
+      <div class="text-xs text-muted mb-2" style="text-transform:uppercase;letter-spacing:.06em;">Awaiting Review</div>
       ${needsAction.map(c => `
         <div class="applicant-card" data-id="${c.id}"
-             style="background:var(--bg-2);border:1px solid var(--accent);
-                    border-radius:var(--r-md);padding:.85rem 1rem;
-                    margin-bottom:.6rem;cursor:pointer;transition:all .15s;">
+             style="background:var(--bg-2);border:1px solid rgba(79,142,247,.35);
+                    border-radius:var(--r-md);padding:.85rem 1rem;margin-bottom:.6rem;">
           <div style="display:flex;align-items:center;gap:.85rem;">
             <div style="width:42px;height:42px;border-radius:50%;overflow:hidden;
                         background:var(--bg-3);border:1px solid var(--b2);flex-shrink:0;">
@@ -411,7 +553,7 @@
               <div style="font-weight:600;color:var(--t1);font-size:14px;">${c.full_name || '—'}</div>
               <div class="text-xs text-muted">${c.department} · CGPA: ${c.cgpa}</div>
             </div>
-            <div style="display:flex;align-items:center;gap:.5rem;">
+            <div style="display:flex;align-items:center;gap:.5rem;flex-shrink:0;">
               ${statusBadge(c.status)}
               ${c.manifesto ? `<span class="badge" style="background:var(--accent-dim);color:var(--accent);border:1px solid rgba(79,142,247,.3);">Has Manifesto</span>` : ''}
               <span class="text-xs text-accent">View →</span>
@@ -419,16 +561,12 @@
           </div>
         </div>`).join('')}` : ''}
 
-      <!-- Other applicants -->
       ${others.length > 0 ? `
-      <div class="text-xs text-muted mb-2 mt-3" style="text-transform:uppercase;letter-spacing:.06em;">
-        Other Applicants
-      </div>
+      <div class="text-xs text-muted mb-2 mt-3" style="text-transform:uppercase;letter-spacing:.06em;">Other Applicants</div>
       ${others.map(c => `
         <div class="applicant-card" data-id="${c.id}"
              style="background:var(--bg-2);border:1px solid var(--b1);
-                    border-radius:var(--r-md);padding:.85rem 1rem;
-                    margin-bottom:.6rem;cursor:pointer;transition:all .15s;">
+                    border-radius:var(--r-md);padding:.85rem 1rem;margin-bottom:.6rem;">
           <div style="display:flex;align-items:center;gap:.85rem;">
             <div style="width:42px;height:42px;border-radius:50%;overflow:hidden;
                         background:var(--bg-3);border:1px solid var(--b2);flex-shrink:0;">
@@ -441,7 +579,7 @@
               <div style="font-weight:600;color:var(--t1);font-size:14px;">${c.full_name || '—'}</div>
               <div class="text-xs text-muted">${c.department} · CGPA: ${c.cgpa}</div>
             </div>
-            <div style="display:flex;align-items:center;gap:.5rem;">
+            <div style="display:flex;align-items:center;gap:.5rem;flex-shrink:0;">
               ${statusBadge(c.status)}
               <span class="text-xs text-muted">View →</span>
             </div>
@@ -480,30 +618,6 @@
         }
       } catch { showAlert('manifesto-alert', 'Network error.'); }
       finally { btn.disabled = false; btn.textContent = 'Submit Manifesto'; }
-    });
-  }
-
-  function bindVote() {
-    document.querySelectorAll('.vote-btn').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        if (!confirm('Confirm your vote? This cannot be undone.')) return;
-        const cId = btn.dataset.id;
-        btn.disabled = true; btn.textContent = 'Voting…';
-        try {
-          const res  = await apiPost(`/elections/${elId}/posts/${postId}/vote/${cId}/`, {});
-          const data = await res.json();
-          if (res.ok) {
-            showAlert('alert', '🗳 Your vote has been cast successfully!', 'success');
-            setTimeout(load, 900);
-          } else {
-            showAlert('alert', data.error || 'Vote failed.');
-            btn.disabled = false; btn.textContent = 'Cast Vote';
-          }
-        } catch {
-          showAlert('alert', 'Network error.');
-          btn.disabled = false; btn.textContent = 'Cast Vote';
-        }
-      });
     });
   }
 
