@@ -391,12 +391,12 @@ def reject_candidate(request, candidate_id):
     if request.user.role != 'admin':
         return Response({"error": "Admin only"}, status=403)
     candidate = get_object_or_404(Candidate, id=candidate_id)
-    if candidate.status != 'pending':
-        return Response({"error": "Candidate must be in pending state to reject."}, status=400)
+    if candidate.status not in ['pending', 'nominated']:
+        return Response({"error": "Candidate cannot be rejected at this stage."}, status=400)
     candidate.status = 'rejected'
     candidate.save()
     return Response({
-        "message": "Candidate Rejected",
+        "message": "Candidate rejected.",
         "attempts_used": candidate.application_attempts,
         "can_reapply": candidate.application_attempts < 2
     })
@@ -539,7 +539,6 @@ def post_detail_page(request, pk, post_pk):
 
 def create_election_page(request):
     return render(request, 'create_election.html')
-
 
 def apply_page(request, pk, post_pk):
     return render(request, 'apply.html')

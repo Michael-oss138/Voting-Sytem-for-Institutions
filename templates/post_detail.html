@@ -2,6 +2,46 @@
 {% load static %}
 {% block title %}Post — CrawfordVote{% endblock %}
 
+{% block extra_css %}
+<style>
+  /* Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(4px);
+    align-items: center; justify-content: center;
+    padding: 1rem;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: var(--bg-1);
+    border: 1px solid var(--b2);
+    border-radius: var(--r-xl);
+    width: 100%; max-width: 560px;
+    max-height: 90vh; overflow-y: auto;
+    padding: 1.75rem;
+    position: relative;
+  }
+  .modal-close {
+    position: absolute; top: 1rem; right: 1rem;
+    background: var(--bg-3); border: 1px solid var(--b2);
+    color: var(--t2); border-radius: var(--r-sm);
+    width: 32px; height: 32px; cursor: pointer;
+    font-size: 1rem; display: flex; align-items: center; justify-content: center;
+  }
+  .modal-close:hover { color: var(--red); border-color: var(--red); }
+  .applicant-card {
+    cursor: pointer;
+    transition: border-color .15s, transform .1s;
+  }
+  .applicant-card:hover {
+    border-color: var(--accent) !important;
+    transform: translateY(-1px);
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="mb-3">
   <a id="back-link" href="#" class="text-sm text-muted" style="text-decoration:none;">← Back to Election</a>
@@ -9,6 +49,14 @@
 
 <div id="alert" class="alert"></div>
 <div id="page-out"><div class="loading">Loading…</div></div>
+
+<!-- Applicant detail modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal-box">
+    <button class="modal-close" id="modal-close">✕</button>
+    <div id="modal-content"></div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -22,6 +70,152 @@
 
   document.getElementById('back-link').href = `/elections-page/${elId}/`;
 
+  // Modal controls
+  const modal      = document.getElementById('modal');
+  const modalClose = document.getElementById('modal-close');
+  modalClose.addEventListener('click', () => modal.classList.remove('open'));
+  modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('open'); });
+
+  // Store candidates globally for modal access
+  let allCandidates = [];
+
+  function openModal(candidateId) {
+    const c = allCandidates.find(c => String(c.id) === String(candidateId));
+    if (!c) return;
+
+    document.getElementById('modal-content').innerHTML = `
+      <!-- Profile header -->
+      <div style="display:flex;align-items:center;gap:1.25rem;margin-bottom:1.25rem;">
+        <div style="width:80px;height:80px;border-radius:50%;overflow:hidden;
+                    background:var(--bg-3);border:2px solid var(--b2);flex-shrink:0;">
+          ${c.profile_picture
+            ? `<img src="${c.profile_picture}" style="width:100%;height:100%;object-fit:cover;"/>`
+            : `<div style="width:100%;height:100%;display:flex;align-items:center;
+                          justify-content:center;font-size:2.5rem;opacity:.4;">👤</div>`}
+        </div>
+        <div>
+          <div style="font-family:var(--f-display);font-size:1.2rem;font-weight:700;color:var(--t1);">
+            ${c.full_name || '—'}
+          </div>
+          <div class="text-sm text-muted">${c.department}</div>
+          <div style="margin-top:.35rem;">${statusBadge(c.status)}</div>
+        </div>
+      </div>
+
+      <div class="hr"></div>
+
+      <!-- Details -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1rem;">
+        <div>
+          <div class="text-xs text-muted mb-1" style="text-transform:uppercase;letter-spacing:.05em;">CGPA</div>
+          <div style="font-weight:600;color:var(--t1);">${c.cgpa}</div>
+        </div>
+        <div>
+          <div class="text-xs text-muted mb-1" style="text-transform:uppercase;letter-spacing:.05em;">Date of Birth</div>
+          <div style="font-weight:500;">${c.date_of_birth || '—'}</div>
+        </div>
+        <div>
+          <div class="text-xs text-muted mb-1" style="text-transform:uppercase;letter-spacing:.05em;">Manifesto Attempts</div>
+          <div style="font-weight:500;">${c.application_attempts}/2</div>
+        </div>
+        <div>
+          <div class="text-xs text-muted mb-1" style="text-transform:uppercase;letter-spacing:.05em;">Status</div>
+          <div style="font-weight:500;">${c.status}</div>
+        </div>
+      </div>
+
+      ${c.manifesto ? `
+      <div class="hr"></div>
+      <div style="margin-bottom:1rem;">
+        <div class="text-xs text-muted mb-2" style="text-transform:uppercase;letter-spacing:.05em;">Manifesto</div>
+        <p class="text-sm" style="line-height:1.8;">${c.manifesto}</p>
+      </div>` : ''}
+
+      ${c.ai_score ? `
+      <div class="hr"></div>
+      <div style="background:var(--bg-2);border:1px solid var(--b1);border-radius:var(--r-md);padding:.85rem;margin-bottom:1rem;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;
+                    letter-spacing:.08em;color:var(--accent);margin-bottom:.6rem;">
+          🤖 AI Manifesto Analysis
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:.5rem;">
+          <span class="badge" style="background:var(--accent-dim);color:var(--accent);
+                border:1px solid rgba(79,142,247,.3);">Theme: ${c.ai_theme || '—'}</span>
+          <span class="badge" style="
+            background:${c.ai_score === 'Strong' ? 'var(--green-dim)' : c.ai_score === 'Moderate' ? 'var(--amber-dim)' : 'var(--red-dim)'};
+            color:${c.ai_score === 'Strong' ? 'var(--green)' : c.ai_score === 'Moderate' ? 'var(--amber)' : 'var(--red)'};
+            border:1px solid ${c.ai_score === 'Strong' ? 'var(--green)' : c.ai_score === 'Moderate' ? 'var(--amber)' : 'var(--red)'};">
+            Score: ${c.ai_score}</span>
+          <span class="badge" style="background:var(--bg-3);color:var(--t2);border:1px solid var(--b2);">
+            Confidence: ${c.ai_confidence || 0}%</span>
+        </div>
+      </div>` : ''}
+
+      <!-- Action buttons inside modal -->
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem;">
+        ${c.status === 'pending' && !c.manifesto
+          ? `<button class="btn btn-outline modal-nominate-btn" data-id="${c.id}">Nominate</button>
+             <button class="btn btn-danger modal-reject-btn" data-id="${c.id}">Reject</button>`
+          : ''}
+        ${c.status === 'pending' && c.manifesto
+          ? `<button class="btn btn-success modal-approve-btn" data-id="${c.id}">Approve</button>
+             <button class="btn btn-danger modal-reject-btn" data-id="${c.id}">Reject</button>`
+          : ''}
+      </div>
+    `;
+
+    modal.classList.add('open');
+    bindModalActions();
+  }
+
+  function bindModalActions() {
+    document.querySelectorAll('.modal-nominate-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        btn.disabled = true; btn.textContent = 'Nominating…';
+        try {
+          const res  = await apiPost(`/candidates/${id}/nominate/`, {});
+          const data = await res.json();
+          modal.classList.remove('open');
+          showAlert('alert', res.ok ? 'Candidate nominated!' : (data.error || 'Failed.'), res.ok ? 'success' : 'error');
+          if (res.ok) setTimeout(load, 700);
+        } catch { showAlert('alert', 'Network error.'); }
+        finally { btn.disabled = false; btn.textContent = 'Nominate'; }
+      });
+    });
+
+    document.querySelectorAll('.modal-approve-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        btn.disabled = true; btn.textContent = 'Approving…';
+        try {
+          const res  = await apiPost(`/candidates/${id}/approve/`, {});
+          const data = await res.json();
+          modal.classList.remove('open');
+          showAlert('alert', res.ok ? 'Candidate approved!' : (data.error || 'Failed.'), res.ok ? 'success' : 'error');
+          if (res.ok) setTimeout(load, 700);
+        } catch { showAlert('alert', 'Network error.'); }
+        finally { btn.disabled = false; btn.textContent = 'Approve'; }
+      });
+    });
+
+    document.querySelectorAll('.modal-reject-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Are you sure you want to reject this candidate?')) return;
+        const id = btn.dataset.id;
+        btn.disabled = true; btn.textContent = 'Rejecting…';
+        try {
+          const res  = await apiPost(`/candidates/${id}/reject/`, {});
+          const data = await res.json();
+          modal.classList.remove('open');
+          showAlert('alert', res.ok ? 'Candidate rejected.' : (data.error || 'Failed.'), res.ok ? 'success' : 'error');
+          if (res.ok) setTimeout(load, 700);
+        } catch { showAlert('alert', 'Network error.'); }
+        finally { btn.disabled = false; btn.textContent = 'Reject'; }
+      });
+    });
+  }
+
   async function load() {
     try {
       const [eRes, cRes, pRes, vRes, myRes] = await Promise.all([
@@ -32,11 +226,11 @@
         apiGet(`/elections/${elId}/posts/${postId}/my-candidacy/`),
       ]);
 
-      const elections   = eRes.ok  ? await eRes.json()  : [];
-      const candidates  = cRes.ok  ? await cRes.json()  : [];
-      const posts       = pRes.ok  ? await pRes.json()  : [];
-      const voteData    = vRes.ok  ? await vRes.json()  : { posts: [] };
-      const myData      = myRes.ok ? await myRes.json() : { candidacy: null };
+      const elections  = eRes.ok  ? await eRes.json()  : [];
+      const candidates = cRes.ok  ? await cRes.json()  : [];
+      const posts      = pRes.ok  ? await pRes.json()  : [];
+      const voteData   = vRes.ok  ? await vRes.json()  : { posts: [] };
+      const myData     = myRes.ok ? await myRes.json() : { candidacy: null };
 
       const election = elections.find(e => String(e.id) === String(elId));
       const post     = posts.find(p => String(p.id) === String(postId));
@@ -45,6 +239,8 @@
         document.getElementById('page-out').innerHTML =
           `<div class="empty-state"><p>Post not found.</p></div>`; return;
       }
+
+      allCandidates = candidates;
 
       const postVoteStatus = voteData.posts?.find(p => String(p.post_id) === String(postId));
       const hasVoted       = postVoteStatus?.has_voted || false;
@@ -57,15 +253,14 @@
   }
 
   function render(election, post, candidates, hasVoted, myCandidacy) {
-    const isAdmin = user?.role === 'admin';
-    const isOpen  = election.status === 'opened';
-
-    // Filter approved candidates for students
-    const visibleCandidates = isAdmin ? candidates : candidates.filter(c => c.status === 'approved');
+    const isAdmin  = user?.role === 'admin';
+    const isOpen   = election.status === 'opened';
+    const isOwner  = isAdmin && String(election.created_by) === String(user.user_id);
+    const approved = candidates.filter(c => c.status === 'approved');
+    const canApply = !isAdmin && isOpen && !myCandidacy;
 
     document.getElementById('page-out').innerHTML = `
 
-      <!-- Header -->
       <div class="flex-between page-hd">
         <div>
           <div class="flex items-center gap-1 mb-1">
@@ -75,34 +270,28 @@
           <h1 style="font-size:1.65rem;">${post.title}</h1>
           ${post.description ? `<p class="mt-1">${post.description}</p>` : ''}
         </div>
-        ${!isAdmin && isOpen && !myCandidacy
+        ${canApply
           ? `<a href="/elections-page/${elId}/posts/${postId}/apply/" class="btn btn-primary">Apply for this Post</a>`
           : ''}
       </div>
 
-      <!-- Student candidacy status -->
       ${!isAdmin && myCandidacy ? renderCandidacyStatus(myCandidacy) : ''}
 
-      <!-- Already voted notice -->
       ${!isAdmin && hasVoted
         ? `<div class="alert alert-success show mb-3">✓ You have already cast your vote for <strong>${post.title}</strong>.</div>`
         : ''}
 
-      <!-- Admin: all applicants -->
-      ${isAdmin ? renderAdminView(candidates) : ''}
+      ${isOwner ? renderAdminPanel(candidates) : ''}
 
-      <!-- Approved Candidates (visible to all) -->
       <div class="flex-between mb-2 mt-3">
-        <h2 style="font-size:.95rem;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;">
-          Approved Candidates
-        </h2>
-        <span class="text-xs text-muted">${visibleCandidates.filter(c => c.status === 'approved').length} approved</span>
+        <h2 style="font-size:.95rem;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;">Approved Candidates</h2>
+        <span class="text-xs text-muted">${approved.length} approved</span>
       </div>
 
-      ${visibleCandidates.filter(c => c.status === 'approved').length === 0
+      ${approved.length === 0
         ? `<div class="empty-state"><span class="empty-icon">👤</span><p>No approved candidates yet.</p></div>`
         : `<div class="grid-2">
-            ${visibleCandidates.filter(c => c.status === 'approved').map(c => `
+            ${approved.map(c => `
               <div class="card">
                 <div style="display:flex;align-items:center;gap:1rem;margin-bottom:.85rem;">
                   <div style="width:56px;height:56px;border-radius:50%;overflow:hidden;
@@ -113,14 +302,12 @@
                                     justify-content:center;font-size:1.5rem;opacity:.4;">👤</div>`}
                   </div>
                   <div>
-                    <div class="card-title">${c.full_name || c.username}</div>
+                    <div class="card-title">${c.full_name || '—'}</div>
                     <div class="text-sm text-muted">${c.department}</div>
                   </div>
                 </div>
                 <div class="hr"></div>
-                ${c.manifesto
-                  ? `<p class="text-sm" style="margin-bottom:.5rem;">${c.manifesto}</p>`
-                  : `<p class="text-sm text-muted">No manifesto submitted yet.</p>`}
+                <p class="text-sm" style="margin-bottom:.5rem;">${c.manifesto || ''}</p>
                 ${!isAdmin && isOpen && !hasVoted
                   ? `<button class="btn btn-primary btn-sm mt-2 vote-btn" data-id="${c.id}">Cast Vote</button>`
                   : ''}
@@ -129,187 +316,141 @@
       }
     `;
 
-    bindAdminActions();
     bindManifestoSubmit();
     bindVote();
+
+    // Bind click on applicant cards to open modal
+    document.querySelectorAll('.applicant-card').forEach(card => {
+      card.addEventListener('click', () => openModal(card.dataset.id));
+    });
   }
 
   function renderCandidacyStatus(c) {
-    if (c.status === 'applied') {
+    if (c.status === 'pending') {
       return `<div class="alert alert-info show mb-3">
-        📋 Your application has been submitted. Wait to be nominated by the admin.
+        📋 Your application has been submitted. The admin is reviewing your details.
       </div>`;
     }
     if (c.status === 'nominated') {
       return `
       <div class="card mb-3" style="border-color:var(--accent);">
-        <div style="font-family:var(--f-display);font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:.5rem;">
-          🎉 You have been nominated!
-        </div>
-        <p class="text-sm mb-3">You can now submit your manifesto. Make it detailed and use action words for a better AI score.</p>
+        <div style="font-family:var(--f-display);font-size:1rem;font-weight:700;
+                    color:var(--accent);margin-bottom:.5rem;">🎉 You have been nominated!</div>
+        <p class="text-sm mb-3">
+          Submit your manifesto. Use action words like "will", "ensure", "improve" and aim for at least 80 words.
+          ${c.application_attempts > 0
+            ? `<strong style="color:var(--amber);">⚠ This is your last attempt.</strong>`
+            : ''}
+        </p>
         <div id="manifesto-alert" class="alert"></div>
         <div class="form-group">
           <label class="form-label">Your Manifesto</label>
-          <div class="text-xs text-muted mb-1">Aim for at least 80 words with action words like "will", "ensure", "improve".</div>
           <textarea class="form-control" id="m-manifesto" rows="7" style="min-height:160px;"
                     placeholder="Tell students what you will do for them if elected…"></textarea>
           <div class="text-xs text-muted mt-1" id="word-count">0 words</div>
         </div>
         <button class="btn btn-primary" id="btn-manifesto">Submit Manifesto</button>
-        ${c.application_attempts > 0
-          ? `<div class="text-xs text-muted mt-2">⚠ Attempts used: ${c.application_attempts}/2</div>`
-          : ''}
-      </div>`;
-    }
-    if (c.status === 'pending') {
-      return `<div class="alert alert-info show mb-3">
-        ⏳ Your manifesto has been submitted and is awaiting admin review.
       </div>`;
     }
     if (c.status === 'approved') {
-      return `<div class="alert alert-success show mb-3">
-        ✅ You are an approved candidate for this post!
+      return `<div class="alert alert-success show mb-3">✅ You are an approved candidate!</div>`;
+    }
+    if (c.status === 'disqualified') {
+      return `<div class="alert alert-error show mb-3">
+        ❌ You have been permanently disqualified from all elections.
       </div>`;
     }
     if (c.status === 'rejected') {
-      const attemptsLeft = 2 - c.application_attempts;
-      if (attemptsLeft > 0) {
-        return `<div class="alert alert-error show mb-3">
-          ❌ Your manifesto was rejected. You have ${attemptsLeft} attempt(s) left.
-          You have been re-nominated — please submit a better manifesto.
-        </div>
-        <div class="card mb-3" style="border-color:var(--red);">
-          <div id="manifesto-alert" class="alert"></div>
-          <div class="form-group">
-            <label class="form-label">Resubmit Your Manifesto</label>
-            <textarea class="form-control" id="m-manifesto" rows="7" style="min-height:160px;"
-                      placeholder="Write a stronger manifesto this time…"></textarea>
-            <div class="text-xs text-muted mt-1" id="word-count">0 words</div>
-          </div>
-          <button class="btn btn-primary" id="btn-manifesto">Resubmit Manifesto</button>
-        </div>`;
-      } else {
-        return `<div class="alert alert-error show mb-3">
-          ❌ You have been permanently rejected. You cannot apply for any election again.
-        </div>`;
-      }
+      return `<div class="alert alert-error show mb-3">
+        ❌ Your application was rejected by the admin.
+      </div>`;
     }
     return '';
   }
 
-  function renderAdminView(candidates) {
-    if (candidates.length === 0) return '';
+  function renderAdminPanel(candidates) {
+    if (candidates.length === 0) return `
+      <div class="card mb-3">
+        <div class="card-title mb-1">Applicants</div>
+        <p class="text-sm text-muted">No applications yet.</p>
+      </div>`;
+
+    // Group by status
+    const needsAction = candidates.filter(c => c.status === 'pending');
+    const others      = candidates.filter(c => c.status !== 'pending');
+
     return `
     <div class="card mb-3">
-      <div class="card-title mb-3">All Applicants</div>
-      ${candidates.map(c => `
-        <div style="background:var(--bg-2);border:1px solid var(--b1);border-radius:var(--r-md);
-                    padding:1rem;margin-bottom:.75rem;">
-          <div style="display:flex;align-items:center;gap:1rem;margin-bottom:.75rem;">
-            <div style="width:48px;height:48px;border-radius:50%;overflow:hidden;
+      <div class="flex-between mb-3">
+        <div class="card-title">All Applicants</div>
+        ${needsAction.length > 0
+          ? `<span class="badge badge-opened">${needsAction.length} need action</span>`
+          : ''}
+      </div>
+      <p class="text-xs text-muted mb-3">Click on an applicant to view full details and take action.</p>
+
+      <!-- Pending applicants first -->
+      ${needsAction.length > 0 ? `
+      <div class="text-xs text-muted mb-2" style="text-transform:uppercase;letter-spacing:.06em;">
+        Awaiting Review
+      </div>
+      ${needsAction.map(c => `
+        <div class="applicant-card" data-id="${c.id}"
+             style="background:var(--bg-2);border:1px solid var(--accent);
+                    border-radius:var(--r-md);padding:.85rem 1rem;
+                    margin-bottom:.6rem;cursor:pointer;transition:all .15s;">
+          <div style="display:flex;align-items:center;gap:.85rem;">
+            <div style="width:42px;height:42px;border-radius:50%;overflow:hidden;
                         background:var(--bg-3);border:1px solid var(--b2);flex-shrink:0;">
               ${c.profile_picture
                 ? `<img src="${c.profile_picture}" style="width:100%;height:100%;object-fit:cover;"/>`
                 : `<div style="width:100%;height:100%;display:flex;align-items:center;
-                              justify-content:center;font-size:1.2rem;opacity:.4;">👤</div>`}
+                              justify-content:center;font-size:1rem;opacity:.4;">👤</div>`}
             </div>
             <div style="flex:1;">
-              <div style="font-weight:600;color:var(--t1);">${c.full_name || '—'}</div>
-              <div class="text-sm text-muted">${c.department} · DOB: ${c.date_of_birth || '—'}</div>
-              <div class="text-xs text-muted">CGPA: ${c.cgpa} · Attempts: ${c.application_attempts}/2</div>
+              <div style="font-weight:600;color:var(--t1);font-size:14px;">${c.full_name || '—'}</div>
+              <div class="text-xs text-muted">${c.department} · CGPA: ${c.cgpa}</div>
             </div>
-            ${statusBadge(c.status)}
+            <div style="display:flex;align-items:center;gap:.5rem;">
+              ${statusBadge(c.status)}
+              ${c.manifesto ? `<span class="badge" style="background:var(--accent-dim);color:var(--accent);border:1px solid rgba(79,142,247,.3);">Has Manifesto</span>` : ''}
+              <span class="text-xs text-accent">View →</span>
+            </div>
           </div>
+        </div>`).join('')}` : ''}
 
-          ${c.manifesto ? `
-          <div style="margin-bottom:.75rem;">
-            <div class="text-xs text-muted mb-1" style="text-transform:uppercase;letter-spacing:.05em;">Manifesto</div>
-            <p class="text-sm">${c.manifesto}</p>
-          </div>` : ''}
-
-          ${c.ai_score ? `
-          <div style="background:var(--bg-3);border:1px solid var(--b1);border-radius:var(--r-sm);
-                      padding:.75rem;margin-bottom:.75rem;">
-            <div style="font-size:11px;font-weight:700;text-transform:uppercase;
-                        letter-spacing:.08em;color:var(--accent);margin-bottom:.5rem;">
-              🤖 AI Manifesto Analysis
+      <!-- Other applicants -->
+      ${others.length > 0 ? `
+      <div class="text-xs text-muted mb-2 mt-3" style="text-transform:uppercase;letter-spacing:.06em;">
+        Other Applicants
+      </div>
+      ${others.map(c => `
+        <div class="applicant-card" data-id="${c.id}"
+             style="background:var(--bg-2);border:1px solid var(--b1);
+                    border-radius:var(--r-md);padding:.85rem 1rem;
+                    margin-bottom:.6rem;cursor:pointer;transition:all .15s;">
+          <div style="display:flex;align-items:center;gap:.85rem;">
+            <div style="width:42px;height:42px;border-radius:50%;overflow:hidden;
+                        background:var(--bg-3);border:1px solid var(--b2);flex-shrink:0;">
+              ${c.profile_picture
+                ? `<img src="${c.profile_picture}" style="width:100%;height:100%;object-fit:cover;"/>`
+                : `<div style="width:100%;height:100%;display:flex;align-items:center;
+                              justify-content:center;font-size:1rem;opacity:.4;">👤</div>`}
             </div>
-            <div style="display:flex;flex-wrap:wrap;gap:.5rem;">
-              <span class="badge" style="background:var(--accent-dim);color:var(--accent);
-                    border:1px solid rgba(79,142,247,.3);">Theme: ${c.ai_theme || '—'}</span>
-              <span class="badge" style="
-                background:${c.ai_score === 'Strong' ? 'var(--green-dim)' : c.ai_score === 'Moderate' ? 'var(--amber-dim)' : 'var(--red-dim)'};
-                color:${c.ai_score === 'Strong' ? 'var(--green)' : c.ai_score === 'Moderate' ? 'var(--amber)' : 'var(--red)'};
-                border:1px solid ${c.ai_score === 'Strong' ? 'var(--green)' : c.ai_score === 'Moderate' ? 'var(--amber)' : 'var(--red)'};">
-                Score: ${c.ai_score}</span>
-              <span class="badge" style="background:var(--bg-3);color:var(--t2);border:1px solid var(--b2);">
-                Confidence: ${c.ai_confidence || 0}%</span>
+            <div style="flex:1;">
+              <div style="font-weight:600;color:var(--t1);font-size:14px;">${c.full_name || '—'}</div>
+              <div class="text-xs text-muted">${c.department} · CGPA: ${c.cgpa}</div>
             </div>
-          </div>` : ''}
-
-          <!-- Admin action buttons -->
-          <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
-            ${c.status === 'applied'
-              ? `<button class="btn btn-outline btn-sm nominate-btn" data-id="${c.id}">Nominate</button>`
-              : ''}
-            ${c.status === 'pending'
-              ? `<button class="btn btn-success btn-sm approve-btn" data-id="${c.id}">Approve</button>
-                 <button class="btn btn-danger btn-sm reject-btn" data-id="${c.id}">Reject</button>`
-              : ''}
+            <div style="display:flex;align-items:center;gap:.5rem;">
+              ${statusBadge(c.status)}
+              <span class="text-xs text-muted">View →</span>
+            </div>
           </div>
-        </div>`).join('')}
+        </div>`).join('')}` : ''}
     </div>`;
   }
 
-  function bindAdminActions() {
-    // Nominate
-    document.querySelectorAll('.nominate-btn').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = btn.dataset.id;
-        btn.disabled = true;
-        try {
-          const res  = await apiPost(`/candidates/${id}/nominate/`, {});
-          const data = await res.json();
-          showAlert('alert', res.ok ? 'Candidate nominated.' : (data.error || 'Failed.'), res.ok ? 'success' : 'error');
-          if (res.ok) setTimeout(load, 700);
-        } catch { showAlert('alert', 'Network error.'); }
-        finally { btn.disabled = false; }
-      });
-    });
-
-    // Approve
-    document.querySelectorAll('.approve-btn').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = btn.dataset.id;
-        btn.disabled = true;
-        try {
-          const res  = await apiPost(`/candidates/${id}/approve/`, {});
-          const data = await res.json();
-          showAlert('alert', res.ok ? 'Candidate approved!' : (data.error || 'Failed.'), res.ok ? 'success' : 'error');
-          if (res.ok) setTimeout(load, 700);
-        } catch { showAlert('alert', 'Network error.'); }
-        finally { btn.disabled = false; }
-      });
-    });
-
-    // Reject
-    document.querySelectorAll('.reject-btn').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = btn.dataset.id;
-        btn.disabled = true;
-        try {
-          const res  = await apiPost(`/candidates/${id}/reject/`, {});
-          const data = await res.json();
-          showAlert('alert', res.ok ? 'Candidate rejected.' : (data.error || 'Failed.'), res.ok ? 'success' : 'error');
-          if (res.ok) setTimeout(load, 700);
-        } catch { showAlert('alert', 'Network error.'); }
-        finally { btn.disabled = false; }
-      });
-    });
-  }
-
   function bindManifestoSubmit() {
-    // Word count
     const textarea = document.getElementById('m-manifesto');
     if (textarea) {
       textarea.addEventListener('input', function() {
@@ -321,13 +462,11 @@
         }
       });
     }
-
     const btn = document.getElementById('btn-manifesto');
     if (!btn) return;
     btn.addEventListener('click', async () => {
       const manifesto = document.getElementById('m-manifesto').value.trim();
       if (!manifesto) { showAlert('manifesto-alert', 'Please write your manifesto.'); return; }
-
       btn.disabled = true; btn.textContent = 'Submitting…';
       try {
         const res  = await apiPost(`/elections/${elId}/posts/${postId}/submit-manifesto/`, { manifesto });
@@ -337,6 +476,7 @@
           setTimeout(load, 1500);
         } else {
           showAlert('manifesto-alert', data.error || 'Submission failed.');
+          setTimeout(load, 1500);
         }
       } catch { showAlert('manifesto-alert', 'Network error.'); }
       finally { btn.disabled = false; btn.textContent = 'Submit Manifesto'; }

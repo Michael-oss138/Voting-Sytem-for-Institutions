@@ -13,6 +13,11 @@
   </div>
 </div>
 
+<!-- Notification banner (admin only) -->
+<div id="nomination-banner" style="display:none;" class="card mb-3"
+     style="border-color:var(--accent);background:var(--accent-dim);">
+</div>
+
 <div class="stat-grid">
   <div class="stat-card">
     <div class="stat-val" id="s-total">—</div>
@@ -52,7 +57,9 @@
     document.getElementById('welcome-sub').textContent  = user.role === 'admin'
       ? 'Admin Dashboard — manage elections below.'
       : 'Your student dashboard — vote and track ongoing elections.';
-    if (user.role === 'admin') document.getElementById('admin-new-btn').style.display = 'block';
+    if (user.role === 'admin') {
+      document.getElementById('admin-new-btn').style.display = 'block';
+    }
   }
 
   async function loadDashboard() {
@@ -66,7 +73,7 @@
       document.getElementById('s-draft').textContent  = data.filter(e => e.status === 'draft').length;
       document.getElementById('s-closed').textContent = data.filter(e => e.status === 'closed').length;
 
-      const out = document.getElementById('elections-out');
+      const out    = document.getElementById('elections-out');
       const recent = data.slice(0, 6);
 
       if (!recent.length) {
@@ -91,10 +98,51 @@
           </div>
         </a>`).join('')}</div>`;
     } catch {
-      showAlert('alert', 'Could not load elections. Is the server running?');
+      showAlert('alert', 'Could not load elections.');
     }
   }
 
+  async function loadNotifications() {
+    if (user?.role !== 'admin') return;
+    try {
+      const res  = await apiGet('/nominations/pending/');
+      if (!res.ok) return;
+      const data = await res.json();
+
+      if (data.count === 0) return;
+
+      const banner = document.getElementById('nomination-banner');
+      banner.style.display = 'block';
+      banner.style.borderColor = 'var(--accent)';
+      banner.style.background  = 'var(--accent-dim)';
+
+      banner.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;">
+          <div>
+            <div style="font-family:var(--f-display);font-weight:700;color:var(--accent);margin-bottom:.25rem;">
+              🔔 ${data.count} Pending Nomination${data.count !== 1 ? 's' : ''}
+            </div>
+            <div class="text-sm text-muted">Students are waiting for your review.</div>
+          </div>
+        </div>
+        <div style="margin-top:.85rem;display:flex;flex-direction:column;gap:.5rem;">
+          ${data.pending.map(p => `
+            <a href="/elections-page/${p.election_id}/posts/${p.post_id}/"
+               style="display:flex;align-items:center;justify-content:space-between;
+                      background:var(--bg-2);border:1px solid var(--b1);
+                      border-radius:var(--r-md);padding:.65rem 1rem;text-decoration:none;">
+              <div>
+                <div style="font-weight:500;color:var(--t1);font-size:14px;">${p.full_name || 'Applicant'}</div>
+                <div class="text-xs text-muted">${p.election} · ${p.post}</div>
+              </div>
+              <span class="text-xs text-accent">Review →</span>
+            </a>`).join('')}
+        </div>
+      `;
+    } catch {}
+  }
+
   loadDashboard();
+  loadNotifications();
 </script>
 {% endblock %}

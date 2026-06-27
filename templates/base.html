@@ -5,9 +5,9 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>{% block title %}CrawfordVote{% endblock %}</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗳</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗳</text></svg>">
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/global.css' %}">
   {% block extra_css %}{% endblock %}
@@ -20,11 +20,32 @@
         <span class="brand-hex">⬡</span>
         Crawford<span class="brand-accent">Vote</span>
       </a>
+
       <div class="nav-center">
         <a href="/dashboard/" class="nav-link" data-match="/dashboard/">Dashboard</a>
         <a href="/elections-page/" class="nav-link" data-match="/elections-page/">Elections</a>
       </div>
+
       <div class="nav-right">
+        <!-- Notification bell (admin only) -->
+        <div id="notif-wrap" style="display:none;position:relative;">
+          <a href="/dashboard/" id="notif-bell"
+             style="display:flex;align-items:center;justify-content:center;
+                    width:34px;height:34px;border-radius:var(--r-sm);
+                    background:var(--bg-2);border:1px solid var(--b1);
+                    text-decoration:none;font-size:1rem;position:relative;">
+            🔔
+            <span id="notif-count"
+                  style="display:none;position:absolute;top:-5px;right:-5px;
+                         background:var(--red);color:#fff;border-radius:99px;
+                         font-size:10px;font-weight:700;min-width:17px;height:17px;
+                         display:flex;align-items:center;justify-content:center;
+                         padding:0 4px;font-family:var(--f-display);">
+              0
+            </span>
+          </a>
+        </div>
+
         <span class="nav-role-badge" id="nav-role-badge"></span>
         <span class="nav-username" id="nav-username"></span>
         <button class="btn-ghost nav-logout" id="logout-btn">Sign out</button>
@@ -41,16 +62,46 @@
   {% block extra_js %}{% endblock %}
 
   <script>
+    // Populate navbar user info
     const _u = getUser();
     if (_u) {
       const nameEl = document.getElementById('nav-username');
       const roleEl = document.getElementById('nav-role-badge');
       if (nameEl) nameEl.textContent = _u.username;
-      if (roleEl) { roleEl.textContent = _u.role; roleEl.className = 'nav-role-badge role-' + _u.role; }
+      if (roleEl) {
+        roleEl.textContent = _u.role;
+        roleEl.className   = 'nav-role-badge role-' + _u.role;
+      }
+
+      // Show bell for admins
+      if (_u.role === 'admin') {
+        document.getElementById('notif-wrap').style.display = 'block';
+        loadNotifCount();
+      }
     }
+
+    // Load notification count
+    async function loadNotifCount() {
+      try {
+        const res  = await apiGet('/nominations/pending/');
+        if (!res.ok) return;
+        const data = await res.json();
+        const el   = document.getElementById('notif-count');
+        if (data.count > 0) {
+          el.textContent   = data.count;
+          el.style.display = 'flex';
+        } else {
+          el.style.display = 'none';
+        }
+      } catch {}
+    }
+
+    // Active nav link
     document.querySelectorAll('.nav-link').forEach(l => {
       if (window.location.pathname.startsWith(l.dataset.match)) l.classList.add('active');
     });
+
+    // Logout
     const _lb = document.getElementById('logout-btn');
     if (_lb) _lb.addEventListener('click', () => { clearTokens(); window.location.href = '/'; });
   </script>
