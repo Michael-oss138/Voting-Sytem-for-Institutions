@@ -114,11 +114,11 @@ def create_election(request):
 @permission_classes([IsAuthenticated])
 def list_elections(request):
     elections = Election.objects.all()
-
     for election in elections:
         if not election.is_manually_controlled:
             election.update_status()
-
+    # Re-fetch after status updates
+    elections = Election.objects.all()
     serializer = ElectionSerializer(elections, many=True)
     return Response(serializer.data)
 
@@ -127,12 +127,15 @@ def list_elections(request):
 @permission_classes([IsAuthenticated])
 def list_posts(request, election_id):
     election = get_object_or_404(Election, id=election_id)
+    if not election.is_manually_controlled:
+        election.update_status()
+        election.refresh_from_db()
     posts = Post.objects.filter(election=election)
     data = [
         {
-            "id":          p.id,
-            "title":       p.title,
-            "description": p.description,
+            "id":              p.id,
+            "title":           p.title,
+            "description":     p.description,
             "candidate_count": Candidate.objects.filter(post=p, status='approved').count()
         }
         for p in posts
@@ -477,30 +480,27 @@ def check_vote_status(request, election_id):
 @permission_classes([IsAuthenticated])
 def election_results(request, election_id):
     election = get_object_or_404(Election, id=election_id)
-    posts    = Post.objects.filter(election=election)
+    if not election.is_manually_controlled:
+        election.update_status()
+        election.refresh_from_db()
+    posts = Post.objects.filter(election=election)
 
     all_results = []
-
     for post in posts:
         candidates = Candidate.objects.filter(election=election, post=post, status='approved')
-
         post_results = []
         for candidate in candidates:
             vote_count = Vote.objects.filter(
-                election=election,
-                post=post,
-                candidate=candidate
+                election=election, post=post, candidate=candidate
             ).count()
             post_results.append({
                 "candidate_id":   candidate.id,
-                "candidate_name": candidate.user.username,
+                "candidate_name": candidate.full_name or candidate.user.username,
                 "department":     candidate.department,
                 "votes":          vote_count
             })
-
         post_results.sort(key=lambda x: x['votes'], reverse=True)
         winner = post_results[0] if post_results else None
-
         all_results.append({
             "post_id":    post.id,
             "post_title": post.title,
@@ -510,6 +510,7 @@ def election_results(request, election_id):
 
     return Response({
         "election": election.title,
+        "status":   election.status,
         "results":  all_results
     })
 

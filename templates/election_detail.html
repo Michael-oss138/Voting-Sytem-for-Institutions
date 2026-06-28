@@ -52,7 +52,8 @@
           <h1 style="font-size:1.65rem;">${el.title}</h1>
           <p class="mt-1">${el.description || ''}</p>
         </div>
-        ${isAdmin ? `<a href="/elections-page/${el.id}/results/" class="btn btn-outline">View Results</a>` : ''}
+        <!-- View Results visible to everyone -->
+        <a href="/elections-page/${el.id}/results/" class="btn btn-outline">View Results</a>
       </div>
 
       <div class="card mb-3" style="padding:1rem 1.4rem;">
@@ -68,6 +69,7 @@
         </div>
       </div>
 
+      <!-- Admin controls (owner only) -->
       ${isOwner ? `
       <div class="admin-bar mb-3">
         <span class="admin-bar-label">Controls</span>
@@ -82,7 +84,7 @@
       </div>
 
       ${posts.length === 0
-        ? `<div class="empty-state"><span class="empty-icon">📋</span><p>No posts added to this election yet.</p></div>`
+        ? `<div class="empty-state"><span class="empty-icon">📋</span><p>No posts added yet.</p></div>`
         : `<div class="grid-2">
             ${posts.map(p => `
               <a href="/elections-page/${el.id}/posts/${p.id}/" class="card card-link" style="text-decoration:none;">

@@ -28,13 +28,19 @@
   }
 
   function render(data) {
-    const postResults = data.results || [];
+    const postResults  = data.results || [];
+    const isClosed     = data.status === 'closed';
 
     document.getElementById('page-out').innerHTML = `
       <div class="page-hd">
         <h1>Election Results</h1>
         <p>${data.election}</p>
       </div>
+
+      ${!isClosed ? `
+      <div class="alert alert-info show mb-3">
+        🗳 Voting is still ongoing. The winner will be announced once the election closes.
+      </div>` : ''}
 
       ${postResults.length === 0
         ? `<div class="empty-state"><span class="empty-icon">🗳</span><p>No results yet.</p></div>`
@@ -43,26 +49,28 @@
             return `
             <div class="card mb-3">
 
-              <!-- Post title -->
               <div class="flex-between mb-3">
                 <h2 style="font-size:1.05rem;">${pr.post_title}</h2>
                 <span class="text-xs text-muted">${total} vote${total !== 1 ? 's' : ''} total</span>
               </div>
 
-              <!-- Winner -->
-              ${pr.winner && pr.winner.votes > 0 ? `
-              <div style="background:var(--accent-dim);border:1px solid rgba(79,142,247,.25);border-radius:var(--r-md);padding:1rem 1.25rem;margin-bottom:1.25rem;">
-                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin-bottom:.35rem;">🏆 Winner</div>
-                <div style="font-family:var(--f-display);font-size:1.3rem;font-weight:800;color:var(--t1);">${pr.winner.candidate_name}</div>
+              <!-- Winner only shown when election is closed -->
+              ${isClosed && pr.winner && pr.winner.votes > 0 ? `
+              <div style="background:var(--accent-dim);border:1px solid rgba(79,142,247,.25);
+                          border-radius:var(--r-md);padding:1rem 1.25rem;margin-bottom:1.25rem;">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;
+                            letter-spacing:.1em;color:var(--accent);margin-bottom:.35rem;">🏆 Winner</div>
+                <div style="font-family:var(--f-display);font-size:1.3rem;font-weight:800;
+                            color:var(--t1);">${pr.winner.candidate_name}</div>
                 <div style="font-size:13px;color:var(--accent);margin-top:.25rem;">
                   ${pr.winner.votes} vote${pr.winner.votes !== 1 ? 's' : ''}
                   · ${total > 0 ? Math.round(pr.winner.votes / total * 100) : 0}%
                   ${pr.winner.department ? ' · ' + pr.winner.department : ''}
                 </div>
-              </div>` : `
-              <div class="alert alert-info show mb-3">No votes cast for this post yet.</div>`}
+              </div>` : isClosed ? `
+              <div class="alert alert-info show mb-3">No votes cast for this post.</div>` : ''}
 
-              <!-- Leaderboard -->
+              <!-- Leaderboard always visible -->
               ${pr.candidates.length > 0 ? `
               <div class="tbl-wrap">
                 <table>
@@ -82,7 +90,7 @@
                       <tr>
                         <td class="font-display text-muted">${i + 1}</td>
                         <td style="font-weight:500;color:var(--t1);">
-                          ${i === 0 && c.votes > 0 ? '🏆 ' : ''}${c.candidate_name}
+                          ${isClosed && i === 0 && c.votes > 0 ? '🏆 ' : ''}${c.candidate_name}
                         </td>
                         <td>${c.department || '—'}</td>
                         <td class="font-display text-accent" style="font-weight:700;">${c.votes}</td>
@@ -98,7 +106,7 @@
                     }).join('')}
                   </tbody>
                 </table>
-              </div>` : ''}
+              </div>` : `<p class="text-sm text-muted">No approved candidates for this post.</p>`}
 
             </div>`;
           }).join('')
