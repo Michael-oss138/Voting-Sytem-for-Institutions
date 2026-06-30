@@ -439,7 +439,12 @@ def cast_vote(request, election_id, post_id, candidate_id):
     if candidate.status != 'approved':
         return Response({"error": "Candidate is not approved"}, status=400)
 
-    # One vote per post per election
+    # Check if user has voted in ANY OTHER election already
+    other_election_vote = Vote.objects.filter(voter=request.user).exclude(election=election).exists()
+    if other_election_vote:
+        return Response({"error": "You can only vote in one election."}, status=400)
+
+    # One vote per post within this election
     if Vote.objects.filter(voter=request.user, election=election, post=post).exists():
         return Response({"error": "You have already voted for this post"}, status=400)
 
